@@ -1,1 +1,32 @@
+# Obsidian local state
 .obsidian/
+.obsidian-mobile/
+.trash/
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors and local environments
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+*.bak
+*~
+.env
+.env.*
+!.env.example
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

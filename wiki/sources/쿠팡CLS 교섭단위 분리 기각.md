@@ -3,13 +3,22 @@ title: 쿠팡CLS 교섭단위 분리 기각
 aliases: [쿠팡CLS 교섭 분리 기각, CLS 상급단체 차이 기각, 택배노조 CLS 교섭단위 분리]
 tags: [type/source, domain/labor-law, area/collective-labor, status/active]
 created: 2026-06-08
-updated: 2026-06-08
-sources: ["“상급단체 차이만으론 교섭단위 분리 불가”…쿠팡CLS 교섭 분리 ‘기각’.md"]
+updated: 2026-07-10
 status: active
+source_id: SRC-0AC5734CA9
+source_type: news
+publisher: 노동법률
+raw_sources: ["raw/“상급단체 차이만으론 교섭단위 분리 불가”…쿠팡CLS 교섭 분리 ‘기각’.md"]
+raw_sha256: ["8fb3d05e525eca881d663e32071890b5b037fab0b1dc28f534f5cd03522e8982"]
+source_urls: []
+related_source_refs: [SRC-C943D804F0]
 legal_area: 집단노동
 authority: 기타
-decision_date: 2026-04-09
-legal_status: current
+publication_date: 2026-05-11
+reported_decision_dates: [2026-04-09]
+legal_status: superseded
+event_status: superseded
+superseded_by: SRC-C943D804F0
 confidence: medium
 ---
 
@@ -31,6 +40,9 @@ confidence: medium
 ## 활용 메모
 
 이 자료는 시행 초기 노동위원회가 상급단체 차이를 독립적 분리 사유로 보지 않고, 업무·근로조건의 유사성과 교섭창구 단일화 제도의 목적을 중시한 사례로 활용한다. 동시에 사용자성 인정과 분리 필요성 판단은 별개 단계라는 점을 보여준다.
+
+> [!NOTE] 후속 결과
+> 중앙노동위원회는 2026년 6월 10일 전국택배노동조합의 재심신청을 받아들이지 않고 서울지방노동위원회의 분리 기각 결론을 유지했다. 최신 절차 상태는 중노위 쿠팡CLS SK에너지 하청노조 분리교섭 불인정 소스 요약에서 확인한다.
 
 ## 관련 항목
 

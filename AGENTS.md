@@ -28,9 +28,9 @@ LaborLaw_Wiki/
 
 ## 2. 페이지 규칙
 
-### 2.1 YAML 프론트매터
+### 2.1 공통 YAML 프론트매터
 
-모든 위키 페이지는 YAML 프론트매터를 포함합니다.
+모든 `wiki/**/*.md` 페이지는 UTF-8·NFC로 저장하고 아래 프론트매터를 포함합니다. 날짜는 실제 날짜인 `YYYY-MM-DD` 형식으로 적고, `updated`는 `created`보다 이를 수 없습니다.
 
 ```yaml
 ---
@@ -39,10 +39,79 @@ aliases: [대안 이름, 약어]
 tags: [type/concept, domain/labor-law, status/draft]
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-sources: [관련 소스 파일명]
 status: draft | active | review | archived
 ---
 ```
+
+`type/*` 태그는 정확히 하나만 두며 디렉토리와 일치시킵니다. `status/*` 태그도 정확히 하나만 두고 `status` 값과 일치시킵니다. `sources:`는 폐기된 필드이므로 새 문서나 갱신 문서에 사용하지 않습니다.
+
+자동 검사의 의존성 없는 YAML 부분집합과 호환되도록 프론트매터는 최상위 스칼라와 문자열 목록을 기본으로 사용합니다. 예외적으로 `case_decisions`는 아래 스키마의 JSON 스타일 인라인 매핑을 목록 항목으로 사용할 수 있습니다. 그 밖의 중첩 매핑, 앵커·별칭, 태그, 블록 문자열, 들여쓰기 없는 목록은 사용하지 않으며 콤마·콜론이 든 문자열 목록 항목은 큰따옴표로 감쌉니다.
+
+### 2.2 출처 요약 페이지 스키마
+
+`wiki/sources/` 페이지에는 공통 필드와 아래 필드를 모두 둡니다. `source_id`는 위키 전체에서 유일하고 안정적이어야 하며 페이지 제목이나 파일명이 바뀌어도 변경하지 않습니다. 기존 페이지 일괄 전환에는 `SRC-`와 제목 SHA-1 앞 10자리 조합을 쓸 수 있고, 새 페이지에는 사건번호·기관·법령을 반영한 의미 있는 영문 대문자 ID를 쓸 수 있습니다.
+
+```yaml
+source_id: SRC-UNIQUE-ID
+source_type: 자료 유형을 나타내는 lower_snake_case 값
+publisher: 실제 발행기관 또는 매체
+raw_sources: [raw/원본파일.pdf]
+raw_sha256: [원본파일의 64자리 SHA-256]
+attachments: [raw/assets/첨부파일.png]
+source_urls: [https://공식-또는-원문-주소]
+retrieved: YYYY-MM-DD
+related_source_refs: [SRC-RELATED-ID]
+superseded_by: SRC-NEWER-ID
+```
+
+- `raw_sources`와 `raw_sha256`은 같은 순서·같은 개수로 대응하며, 해시는 실제 파일 바이트와 일치해야 합니다.
+- `raw_sources`와 `attachments`는 저장소 루트 기준 `raw/...` 경로로 씁니다. 첨부는 선택 사항이며 `raw_sha256`의 대응 대상은 `raw_sources`입니다.
+- 원본 파일이 없는 URL 전용 출처는 `raw_sources: []`, `raw_sha256: []`, 하나 이상의 `source_urls`, `retrieved`를 갖습니다. URL을 원본 파일처럼 가장하지 않습니다.
+- 원본 파일이 있는 출처도 URL을 기록했다면 `retrieved`를 반드시 둡니다. 모든 출처는 `raw_sources` 또는 `source_urls` 중 하나 이상을 가져야 합니다.
+- `publisher`는 실제 자료 발행자입니다. 보도자료가 아닌 기사에서 보도 대상 기관을 `publisher`나 `authority`로 가장하지 않습니다. 필요하면 `reported_authority`에 보도 대상 기관의 실제 이름(예: `울산지방노동위원회`)을 적습니다.
+- `source_type`은 자료 자체의 성격입니다. 기사에 노동위원회 판정이 인용되어 있어도 `news`이며, 노동위원회 공식 판정문일 때만 `official_decision`입니다.
+- 권장 값은 `official_law`, `official_decision`, `official_guidance`, `official_record`, `academic_paper`, `research_report`, `news`, `practitioner_commentary`, `llm_report`, `stakeholder_statement`입니다. 새 유형이 필요하면 의미가 겹치지 않는 `lower_snake_case` 값을 사용하고 운영 지침에 추가합니다.
+- `related_source_refs`는 같은 사건의 선행·후속 자료처럼 직접 관련된 다른 출처 ID를 연결하는 선택 목록입니다. `superseded_by`는 이 자료를 대체한 단일 후속 출처 ID이며 이때 `legal_status: superseded`를 함께 사용합니다. 둘 다 존재하는 `source_id`만 가리키며 자기 자신을 참조하지 않습니다.
+
+출처의 발행일과 출처가 보도·해설하는 결정일은 다음처럼 구분합니다.
+
+```yaml
+publication_date: YYYY-MM-DD
+publication_period: YYYY | YYYY-MM
+reported_decision_dates: [YYYY-MM-DD]
+case_decisions:
+  - {"case_number": "사건번호", "decision_date": "YYYY-MM-DD", "court": "기관명", "event_status": "decided"}
+```
+
+출처 요약에서 `decision_date`는 `official_decision` 원문 자체의 선고·결정일에만 사용합니다. 기사·해설처럼 일자가 확인되는 자료의 작성·발행일은 `publication_date`, 학술논문·연구보고서처럼 연도 또는 연월까지만 확인되는 자료는 `publication_period`를 사용합니다. 불명확한 날짜를 임의로 월 1일이나 1월 1일로 만들지 않습니다. 그 자료가 다루는 판정·판결일은 `reported_decision_dates`에 기록합니다. 여러 사건을 구조화한 선택 필드 `case_decisions`는 `case_number`와 `decision_date`를 필수로, `court`와 `event_status`를 선택적으로 사용합니다. 각 매핑은 JSON처럼 키와 문자열을 큰따옴표로 감싸며, 여러 줄 중첩 매핑 대신 위 예시처럼 한 줄에 씁니다. 과거의 모호한 `decision_dates` 필드는 사용하지 않습니다.
+
+`news`, `stakeholder_statement`는 확인 가능한 `publication_date`를 기록합니다. 월간지 해설을 포함한 `practitioner_commentary`, `academic_paper`, `research_report`, `llm_report`는 `publication_date` 또는 `publication_period` 중 하나 이상을 기록합니다. 두 필드를 함께 쓰면 연도·월이 서로 일치해야 합니다.
+
+공식 법령(`source_type: official_law`)에는 다음 필드를 추가합니다.
+
+```yaml
+authority: 법령
+as_of_date: YYYY-MM-DD
+effective_date: YYYY-MM-DD
+version: "법률 제00000호; lsiSeq=000000"
+staged_effective_dates: []
+```
+
+- `source_urls`에는 `lsiSeq`, 공포번호·공포일 등으로 특정되는 버전 고정 URL을 하나 이상 둡니다.
+- `as_of_date`는 내용을 확인한 기준일, `effective_date`는 해당 현행본의 대표 시행일입니다.
+- 조문별 시행일이 갈리면 `staged_effective_dates`와 본문에 예외를 기록합니다. 선택적 `law_number`는 보조 필드일 뿐 `version`을 대신하지 않습니다.
+
+### 2.3 일반 페이지의 출처 참조
+
+`wiki/sources/` 이외의 모든 페이지는 파일명 대신 안정적인 ID를 참조합니다.
+
+```yaml
+source_refs: [SRC-UNIQUE-ID, SRC-ANOTHER-ID]
+```
+
+- `source_refs`의 모든 값은 존재하는 출처 요약 페이지의 `source_id`와 일치해야 하며 중복할 수 없습니다.
+- 개념·개체·분석 페이지는 하나 이상의 근거를 갖습니다. `index.md`, `log.md`, `overview.md`와 방법론 등 실체적 주장이 없는 메타 페이지는 빈 배열을 허용합니다.
+- 본문에는 출처 요약 페이지로 향하는 인용 위키링크를 붙이지 않습니다. 근거 추적은 `source_refs`와 출처 요약 페이지에 남깁니다.
 
 노동법 관련 페이지에는 필요한 경우 아래 필드를 추가합니다.
 
@@ -56,6 +125,15 @@ legal_status: current | amended | repealed | overruled | superseded | uncertain
 confidence: high | medium | low
 ```
 
+사건·절차의 진행 상태를 추적할 때는 아래 필드를 사용합니다.
+
+```yaml
+event_status: scheduled | pending | decided | appealed | final | superseded | closed | uncertain
+next_review_date: YYYY-MM-DD
+```
+
+`scheduled`, `pending`, `appealed`, `uncertain`은 `next_review_date`가 필수입니다. 검토일이 지났으면 즉시 확인하고 날짜·상태를 갱신합니다. 완료된 사건은 확인 가능한 범위에서 `decided`, `final`, `superseded`, `closed`로 전환합니다.
+
 입법 과정 분석 페이지에는 아래 필드를 추가할 수 있습니다.
 
 ```yaml
@@ -66,15 +144,16 @@ committee: ""
 key_dates: []
 ```
 
-### 2.2 내부 링크
+### 2.4 내부 링크
 
 - 옵시디언 `[[위키링크]]` 형식을 사용합니다.
 - 처음 언급될 때 링크하고, 같은 문맥의 반복 언급은 링크 없이 씁니다.
-- 아직 페이지가 없는 개념도 `[[미래 페이지]]`로 링크할 수 있습니다.
+- 커밋되는 문서의 위키링크는 실제 페이지 또는 별칭으로 해소되어야 합니다. 아직 없는 개념은 일반 텍스트로 두고 페이지를 만든 뒤 링크합니다.
 - 섹션 링크는 `[[페이지명#섹션]]` 형식을 사용합니다.
 - 조문, 판례, 행정해석, 입법자료는 관련 개념 페이지와 상호 링크합니다.
+- 자기 페이지로 향하는 링크는 만들지 않습니다.
 
-### 2.3 태그 체계
+### 2.5 태그 체계
 
 | 접두사 | 용도 | 예시 |
 |--------|------|------|
@@ -83,11 +162,11 @@ key_dates: []
 | `area/` | 노동법 세부 영역 | `area/wage`, `area/working-time`, `area/dismissal`, `area/collective-labor`, `area/industrial-accident` |
 | `status/` | 상태 | `status/draft`, `status/active`, `status/review` |
 
-### 2.4 작성 원칙
+### 2.6 작성 원칙
 
 - 한국어를 기본으로 하되, 고유명사·전문용어는 필요한 경우 원어를 병기합니다.
 - 법률 자문처럼 단정하지 않고, 중립적·백과사전적 톤으로 씁니다.
-- 모든 실체적 주장은 프론트매터의 `sources:`와 `wiki/sources/` 소스 요약 페이지에 근거를 둡니다.
+- 모든 실체적 주장은 프론트매터의 `source_refs:`와 `wiki/sources/` 소스 요약 페이지에 근거를 둡니다.
 - 본문에는 `wiki/sources/`의 소스 요약 페이지로 향하는 인용 링크를 붙이지 않습니다.
 - 본문에서 소스명을 문장 성분으로 언급할 필요가 있으면 링크 없이 일반 텍스트로 씁니다.
 - 본문 위키링크는 관련 개념·개체·분석 페이지 연결을 우선합니다.
@@ -95,6 +174,7 @@ key_dates: []
 - 판례는 사건번호, 선고일, 법원, 핵심 법리를 명시합니다.
 - 행정해석은 발행기관, 문서번호, 회시일, 후속 변경 가능성을 명시합니다.
 - 모순이 발견되면 명시적으로 기록합니다: `> [!WARNING] 모순 발견`
+- `> [!WARNING]`을 포함한 페이지는 해결될 때까지 `status: review`와 `status/review` 태그를 사용합니다.
 - 각 페이지 하단에 `## 관련 항목` 섹션을 둡니다.
 
 ## 3. 노동법 지식 구조
@@ -169,12 +249,13 @@ key_dates: []
 
 1. 소스를 전체적으로 읽고 문서 성격을 분류합니다.
 2. 핵심 인사이트 3-5개와 사용자의 관심사를 확인합니다.
-3. `wiki/sources/`에 소스 요약 페이지를 작성합니다.
+3. `wiki/sources/`에 고유 `source_id`, 원본 경로·해시 또는 URL·조회일을 갖춘 소스 요약 페이지를 작성합니다.
 4. 관련 개념·개체·분석 페이지를 갱신합니다.
-5. 관련 개념·개체·분석 페이지 본문에서는 소스 요약 페이지 인용 링크를 제거하고, 근거 추적은 프론트매터 `sources:`와 소스 요약 페이지에 남깁니다.
+5. 관련 개념·개체·분석 페이지의 `source_refs:`에 `source_id`를 연결하고, 본문의 소스 요약 페이지 인용 링크는 제거합니다.
 6. 새 개념, 기관, 조문, 판례가 필요하면 페이지를 생성합니다.
 7. `wiki/index.md`를 갱신합니다.
 8. `wiki/log.md`에 작업 내용을 기록합니다.
+9. `python -I -B scripts/lint_wiki.py`를 실행하고 오류를 해결합니다.
 
 ### 5.2 질의 (Query)
 
@@ -196,7 +277,9 @@ key_dates: []
 4. 개정 법령이나 최신 판례로 대체된 오래된 정보를 찾습니다.
 5. 누락된 교차참조를 찾습니다.
 6. 추가 조사할 질문이나 소스를 제안합니다.
-7. 결과를 `wiki/log.md`에 기록합니다.
+7. 출처 ID·원본 해시·URL 조회일·법령 버전과 색인의 소스 수를 검사합니다.
+8. 결과를 `wiki/log.md`에 새 항목으로 추가합니다.
+9. 변경 전 기준 브랜치가 있으면 `python -I -B scripts/lint_wiki.py --base <기준>`으로 원본 불변성과 로그 보존도 검사합니다.
 
 ## 6. 특수 파일
 
@@ -204,14 +287,19 @@ key_dates: []
 
 - 카테고리별로 모든 위키 페이지를 나열합니다.
 - 각 항목은 `- [[페이지명]] — 한 줄 요약 (소스 N개)` 형식을 기본으로 합니다.
+- `N`은 출처 요약 페이지에서는 `raw_sources`와 `source_urls` 항목 수의 합, 그 밖의 페이지에서는 `source_refs` 항목 수입니다.
+- `index.md` 자신을 제외한 모든 위키 페이지를 정확히 한 번 수록하며, 페이지 유형에 맞는 카테고리에 둡니다.
 - 새 페이지 생성·삭제 시 반드시 갱신합니다.
 
 ### 6.2 log.md
 
-- 시간순 기록이며 최신 항목이 아래로 갑니다.
+- `log.md`는 append-only 감사기록입니다. 기존 작업 항목의 본문·순서·제목을 수정하거나 삭제하지 않습니다.
+- 시간순 기록이며 새 항목은 마지막 기존 작업 항목 다음, `## 관련 항목` 앞에 추가합니다.
 - 형식: `## [YYYY-MM-DD] 작업유형 | 제목`
-- 작업유형은 `ingest`, `query`, `lint`, `create`, `update`, `maintenance` 중 하나를 사용합니다.
+- 작업유형은 Git 커밋과 동일하게 `ingest`, `analysis`, `update`, `lint`, `maintenance`, `refactor`, `remove`, `chore` 중 하나만 사용합니다.
 - 각 항목에 변경된 페이지 목록을 포함합니다.
+- 과거 기록의 오류를 발견하면 원문을 고치지 않고 새 `maintenance` 항목에서 정정 대상 헤더와 사유를 기록합니다.
+- 프론트매터 `updated`와 마지막의 `## 관련 항목`은 관리할 수 있지만, 기준 브랜치에 존재하던 작업 항목은 문자·공백·순서가 보존되어야 합니다. 플랫폼 줄바꿈은 `.gitattributes`의 LF 정규형으로 비교합니다.
 
 ### 6.3 overview.md
 
@@ -235,9 +323,11 @@ key_dates: []
 3. 루트의 `AGENTS.md`, `README.md`, `.gitignore`는 사용자가 요청한 경우에만 수정합니다.
 4. 확실하지 않은 것은 사용자에게 묻습니다.
 5. 큰 변경 전에는 무엇을 할지 먼저 설명합니다.
-6. 모든 위키 작업은 `wiki/log.md`에 기록합니다.
+6. 모든 위키 작업은 `wiki/log.md`에 새 항목으로 기록하며 과거 항목을 고치지 않습니다.
 7. `wiki/index.md`는 항상 최신 상태를 유지합니다.
 8. 사용자의 관심사와 맥락을 기억하고 반영합니다.
+9. 기존 `raw/` 파일은 이름 변경·이동·삭제도 수정으로 간주하며 금지합니다. 새 원본 추가만 허용합니다.
+10. 완료 전 `python -I -B scripts/lint_wiki.py`를 실행하고, Git 기준점이 있으면 `--base` 검사도 실행합니다.
 
 ## 9. Git 커밋 메시지 규칙
 
@@ -257,7 +347,7 @@ refactor: 사용하지 않는 .gitkeep 제거
 remove: 임시 강의 초안 삭제
 ```
 
-권장 타입은 아래와 같습니다.
+작업유형은 `wiki/log.md`와 아래 통제어휘를 공유합니다.
 
 | 타입 | 용도 |
 |------|------|
@@ -265,6 +355,7 @@ remove: 임시 강의 초안 삭제
 | `analysis` | 쟁점 분석, 판례 비교, 법리 정리 등 해석적 페이지 추가·보강 |
 | `update` | 기존 개념·개체·개요 페이지의 일반 갱신 |
 | `lint` | 색인, 링크, 프론트매터, 고아 페이지, 문서 구조 정리 |
+| `maintenance` | 색인·로그·개요, 백업 점검 등 위키의 일상 유지관리 |
 | `refactor` | 의미 변화 없는 파일 구조·설정·관리 파일 정리 |
 | `remove` | 임시 문서, 중복 문서, 불필요 파일 삭제 |
 | `chore` | 운영 지침, README, 저장소 관리성 변경 |
@@ -278,3 +369,23 @@ remove: 임시 강의 초안 삭제
 - analyses: 추가·갱신한 주요 분석
 - maintenance: index.md, log.md, overview.md 등 정리 내용
 ```
+
+## 10. 자동 점검과 저장소 정책
+
+### 10.1 로컬 점검
+
+```text
+python -I -B -m unittest discover -s tests -p "test_*.py"
+python -I -B scripts/lint_wiki.py
+python -I -B scripts/lint_wiki.py --base origin/main
+```
+
+첫 명령은 린터 단위 테스트를 실행합니다. 두 번째 명령은 현재 트리의 프론트매터, 태그, 링크·섹션, 색인, 출처 계보, 원본 해시, 법령 버전, 경고 상태, UTF-8·NFC를 검사합니다. 세 번째 명령은 이에 더해 기준점 이후 기존 `raw/` 파일의 수정·삭제·이동 금지, 기존 로그 항목 보존, 위키 변경 시 새 로그 항목 추가를 검사합니다. 검토기한 경과는 기본적으로 경고이며 `--strict-warnings`를 붙이면 오류로 취급합니다.
+
+### 10.2 CI
+
+`.github/workflows/lint-wiki.yml`은 push와 pull request에서 같은 검사를 실행합니다. pull request에서는 대상 커밋, 일반 push에서는 push 직전 커밋을 `--base`로 사용해 불변성 규칙까지 검사합니다. 최초 push와 수동 실행은 비교 기준 없이 현재 트리를 검사합니다. 오류가 남은 변경은 병합하지 않습니다.
+
+### 10.3 줄바꿈·원본 바이트
+
+`.gitattributes`는 위키·운영 문서·스크립트를 LF 텍스트로 정규화하고 `raw/** -text`로 원본의 바이트 자동 변환을 막습니다. 이미 커밋된 원본은 내용뿐 아니라 이름과 위치도 바꾸지 않습니다. 잘못 추가한 원본을 정리해야 할 때는 사용자 승인, 사유를 적은 로그, 별도 커밋이 모두 필요합니다.

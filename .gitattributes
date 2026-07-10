@@ -1,0 +1,18 @@
+# Repository-authored text uses LF on every platform.
+* text=auto
+*.md text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+AGENTS.md text eol=lf
+README.md text eol=lf
+wiki/** text eol=lf
+scripts/** text eol=lf
+.github/** text eol=lf
+
+# Source evidence is immutable at the byte level, including Markdown captures.
+raw/** -text -eol

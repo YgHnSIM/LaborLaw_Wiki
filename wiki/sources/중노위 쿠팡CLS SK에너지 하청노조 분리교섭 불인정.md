@@ -3,23 +3,28 @@ title: 중노위 쿠팡CLS SK에너지 하청노조 분리교섭 불인정
 aliases: [쿠팡CLS 중노위 재심 기각 유지, SK에너지 분리교섭 불인정, 중노위 분리교섭 불인정 2026.6.10]
 tags: [type/source, domain/labor-law, area/collective-labor, status/active]
 created: 2026-06-12
-updated: 2026-06-12
-sources: []
+updated: 2026-07-10
 status: active
+source_id: SRC-C943D804F0
+source_type: news
+publisher: 연합뉴스
+raw_sources: []
+raw_sha256: []
+source_urls: ["https://www.yna.co.kr/view/AKR20260610171800530"]
+retrieved: 2026-06-12
 legal_area: 집단노동
 authority: 기타
-decision_date: 2026-06-10
+publication_date: 2026-06-10
+reported_decision_dates: [2026-06-10]
 legal_status: current
 confidence: medium
-source_url: https://www.yna.co.kr/view/AKR20260610171800530
-retrieved: 2026-06-12
 ---
 
 # 중노위 쿠팡CLS SK에너지 하청노조 분리교섭 불인정
 
 ## 문서 성격
 
-연합뉴스가 2026년 6월 10일 중앙노동위원회의 [[쿠팡로지스틱스서비스]] 및 SK에너지 하청노조 교섭단위 분리 재심 결정을 보도한 기사다. 위키에서는 쿠팡CLS 교섭단위 분리 기각 사건의 재심 단계 보충자료로 활용한다.
+연합뉴스가 2026년 6월 10일 중앙노동위원회의 [[쿠팡로지스틱스서비스]] 및 [[SK에너지]] 하청노조 교섭단위 분리 재심 결정을 보도한 기사다. 위키에서는 쿠팡CLS 교섭단위 분리 기각 사건의 재심 단계 보충자료로 활용한다.
 
 ## 핵심 요약
 
@@ -37,6 +42,7 @@ retrieved: 2026-06-12
 ## 관련 항목
 
 - [[쿠팡로지스틱스서비스]]
+- [[SK에너지]]
 - [[교섭단위 분리]]
 - [[교섭창구 단일화]]
 - [[원하청 교섭]]
