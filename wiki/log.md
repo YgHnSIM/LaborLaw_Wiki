@@ -229,6 +229,12 @@ source_refs: []
 - `.gitattributes`에 TTF 바이너리 예외를 추가하고 `site/serve.mjs`에 글꼴 MIME 유형을 지정했으며 `site/tests/build.test.mjs`에서 공식 글꼴 해시·산출물 복사·라이선스·모바일 여백을 회귀 검사함.
 - `wiki/log.md`에 글꼴 자산과 모바일 표시 수정 범위 및 실제 브라우저 검증 대상을 기록함.
 
+## [2026-07-11] update | 이전·다음 탐색 제목과 화살표 겹침 보정
+
+- `site/assets/styles.css`에서 다음 문서 제목에 화살표 전용 오른쪽 여백을 확보해 D2Coding 글꼴에서도 마지막 글자와 아이콘이 겹치지 않도록 수정함.
+- `site/tests/build.test.mjs`에 다음 문서 제목의 아이콘 여백을 보존하는 회귀 검사를 추가함.
+- `wiki/log.md`에 연차유급휴가 페이지의 모바일 이전·다음 탐색 재현 조건과 수정 범위를 기록함.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]

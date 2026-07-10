@@ -249,6 +249,11 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
   assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*padding-left:\s*3\.6rem;/);
 });
 
+test("다음 문서 제목은 화살표 공간을 확보한다", async () => {
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  assert.match(css, /\.prev-next \.next strong\s*\{[^}]*margin-right:\s*2rem;/);
+});
+
 test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다", async () => {
   const sourceFiles = [
     path.join(rootDir, "site", "assets", "styles.css"),

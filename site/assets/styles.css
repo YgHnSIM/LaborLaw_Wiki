@@ -1272,6 +1272,10 @@ summary:focus-visible {
   line-height: 1.4;
 }
 
+.prev-next .next strong {
+  margin-right: 2rem;
+}
+
 .prev-next .icon {
   position: absolute;
   right: 1rem;
