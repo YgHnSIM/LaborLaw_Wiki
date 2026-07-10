@@ -530,6 +530,14 @@ summary:focus-visible {
   color: var(--blue);
 }
 
+.page-facts > span:last-child {
+  border-right: 1px solid var(--line-strong);
+}
+
+.page-facts > .status-badge:last-child {
+  border-right-color: var(--blue);
+}
+
 .home-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1766,9 +1774,26 @@ summary:focus-visible {
     padding-left: 0.95rem;
   }
 
+  .page-facts {
+    display: inline-grid;
+    grid-template-columns: repeat(2, max-content);
+  }
+
   .page-facts > span {
     padding-right: 0.45rem;
     padding-left: 0.45rem;
+  }
+
+  .page-facts > span:nth-child(even) {
+    border-right: 1px solid var(--line-strong);
+  }
+
+  .page-facts > span:nth-child(n + 3) {
+    border-top: 0;
+  }
+
+  .page-facts > span:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .aliases {

@@ -200,6 +200,14 @@ source_refs: []
 - `.github/workflows/pages.yml`에 위키 검사, 웹 테스트, 동적 GitHub Pages 기준 경로 빌드와 최소 권한 배포를 추가하고 `.gitignore`, `.gitattributes`, `.github/CODEOWNERS`를 웹 산출물과 자산에 맞게 갱신함.
 - `README.md`와 `AGENTS.md`에 로컬 빌드, Pages 최초 설정, URL·출처 계보·원본 제외 규칙을 기록하고 데스크톱·모바일·검색·출처 화면을 실제 브라우저에서 검증함.
 
+## [2026-07-11] chore | 웹 메타정보 외곽선 폐합
+
+- `site/assets/styles.css`의 문서 메타정보 바 마지막 셀에 오른쪽 외곽선을 추가해 모든 위키 페이지에서 비대칭으로 열린 끝선을 닫음.
+- `site/assets/styles.css`에서 320px급 화면의 메타정보가 줄바꿈될 때도 각 행의 외곽선이 닫히도록 2열 그리드와 행 경계 규칙을 추가함.
+- `site/tests/build.test.mjs`에 데스크톱 마지막 셀과 모바일 각 행의 오른쪽 외곽선 규칙을 보존하는 회귀 검사를 추가함.
+- `site/assets/styles.css`의 홈 통계·분류 카드·근거 패널·목차·표·이전·다음 탐색에서 열린 선은 대칭적인 편집 레일 또는 닫힌 부모 안의 내부 구분선임을 전수 확인하고 유지함.
+- `wiki/log.md`에 외곽선 감사 범위와 반응형 검증 내용을 새 작업 항목으로 기록함.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
