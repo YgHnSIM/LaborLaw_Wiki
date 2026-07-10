@@ -1,0 +1,102 @@
+name: Deploy wiki to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install site dependencies
+        run: npm ci
+
+      - name: Validate wiki
+        shell: bash
+        run: |
+          python -I -B -m unittest discover -s tests -p "test_*.py"
+          base=""
+          before="${{ github.event.before }}"
+          if [[ "${{ github.event_name }}" == "push" && -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]]; then
+            base="$before"
+          elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            base="HEAD^"
+          fi
+
+          if [[ -n "$base" ]]; then
+            if git cat-file -e "${base}:scripts/lint_wiki.py" 2>/dev/null; then
+              trusted_lint="$(mktemp scripts/.lint_wiki_base.XXXXXX.py)"
+              trap 'rm -f "$trusted_lint"' EXIT
+              git show "${base}:scripts/lint_wiki.py" > "$trusted_lint"
+              python -I -B "$trusted_lint" --base "$base" --strict-warnings
+            fi
+            python -I -B scripts/lint_wiki.py --base "$base" --strict-warnings
+          else
+            python -I -B scripts/lint_wiki.py --strict-warnings
+          fi
+
+      - name: Test site generator
+        run: npm test
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Build static site
+        env:
+          SITE_BASE: ${{ steps.pages.outputs.base_path }}
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+          REPOSITORY_REF: ${{ github.sha }}
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

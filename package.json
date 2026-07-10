@@ -1,0 +1,21 @@
+{
+  "name": "labor-law-wiki-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "대한민국 노동법 위키의 GitHub Pages 정적 사이트 빌드",
+  "scripts": {
+    "build": "node site/build.mjs",
+    "preview": "npm run build && node site/serve.mjs",
+    "test": "node --check site/assets/app.js && node --test site/tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "github-slugger": "2.0.0",
+    "markdown-it": "14.3.0",
+    "markdown-it-anchor": "9.2.1",
+    "yaml": "2.9.0"
+  }
+}

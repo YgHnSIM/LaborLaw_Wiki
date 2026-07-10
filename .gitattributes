@@ -5,6 +5,11 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.json text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
 *.txt text eol=lf
 .gitattributes text eol=lf
 .gitignore text eol=lf
@@ -13,6 +18,7 @@ README.md text eol=lf
 wiki/** text eol=lf
 scripts/** text eol=lf
 .github/** text eol=lf
+site/** text eol=lf
 
 # Source evidence is immutable at the byte level, including Markdown captures.
 raw/** -text -eol

@@ -1,6 +1,6 @@
 # 대한민국 노동법 위키
 
-대한민국 노동법의 법령·판례·행정해석·노동위원회 판정·입법자료를 원본에서 분석 페이지까지 추적할 수 있게 정리하는 Obsidian 기반 지식베이스입니다. 원본은 `raw/`에 바이트 그대로 보존하고, `wiki/` 문서는 안정적인 출처 ID와 원본 해시 또는 버전 고정 URL로 근거를 연결합니다.
+대한민국 노동법의 법령·판례·행정해석·노동위원회 판정·입법자료를 원본에서 분석 페이지까지 추적할 수 있게 정리하는 Obsidian 기반 지식베이스입니다. 같은 문서를 GitHub Pages 정적 웹 위키로도 제공합니다. 원본은 `raw/`에 바이트 그대로 보존하고, `wiki/` 문서는 안정적인 출처 ID와 원본 해시 또는 버전 고정 URL로 근거를 연결합니다.
 
 ## 빠른 시작
 
@@ -14,6 +14,9 @@
 python -I -B -m unittest discover -s tests -p "test_*.py"
 python -I -B scripts/lint_wiki.py
 python -I -B scripts/lint_wiki.py --base origin/main
+npm ci
+npm test
+npm run build
 ```
 
 두 번째 명령은 현재 트리를 검사하고, 세 번째 명령은 기준 브랜치 이후 원본 불변성, 로그 보존, 위키 변경 시 로그 갱신까지 확인합니다. 검토기한 경과 경고도 실패로 처리하려면 `--strict-warnings`를 붙입니다.
@@ -31,7 +34,46 @@ wiki/meta/              템플릿·방법론·용어집
 wiki/index.md           전체 페이지 카탈로그
 wiki/log.md             append-only 작업 감사기록
 scripts/lint_wiki.py    의존성 없는 저장소 검사기
+site/                   정적 웹 위키 생성기·화면·브라우저 자산·테스트
+package.json            웹 빌드 명령과 고정된 Node 의존성
+_site/                  생성된 웹 사이트(커밋하지 않음)
 ```
+
+## 웹 사이트 로컬 실행
+
+Node.js 22 이상에서 의존성을 설치하고 정적 사이트를 생성합니다. `wiki/`가 단일 콘텐츠 원본이며 생성 결과인 `_site/`는 Git에 추가하지 않습니다.
+
+```powershell
+npm ci
+npm test
+npm run build
+npm run preview
+```
+
+`npm run preview`는 빌드 뒤 `http://127.0.0.1:4173/`에서 로컬 서버를 엽니다. 웹 생성기는 다음 규칙을 적용합니다.
+
+- `overview.md`는 홈페이지, `index.md`는 `/catalog/`, `log.md`는 `/log/`로 만듭니다.
+- 출처 페이지는 파일명 대신 `/sources/{source_id}/` 형태의 안정적인 주소를 사용합니다.
+- 파일명·제목·별칭을 기준으로 Obsidian 위키링크를 해석하고 콜아웃과 표를 웹 HTML로 변환합니다.
+- 일반 문서에는 `source_refs` 기반 근거 목록을, 출처 문서에는 이를 사용한 문서의 역참조를 표시합니다.
+- 검색은 제목, 별칭, 본문, 출처 ID, 발행기관, 사건번호·의안번호를 대상으로 합니다.
+- `raw/` 파일은 Pages 산출물에 복제하지 않고 배포 커밋에 고정된 GitHub 원본 링크로 연결합니다.
+
+GitHub Pages 프로젝트 경로를 로컬에서 재현하려면 다음처럼 환경변수를 지정할 수 있습니다.
+
+```powershell
+$env:SITE_BASE='/LaborLaw_Wiki/'
+$env:SITE_URL='https://yghnsim.github.io/LaborLaw_Wiki'
+npm run build
+```
+
+## GitHub Pages 배포
+
+`.github/workflows/pages.yml`은 `main` 브랜치 push와 수동 실행에서 Python 위키 검사, 웹 생성기 테스트, 프로덕션 빌드를 차례로 통과한 결과만 GitHub Pages에 배포합니다. GitHub의 실제 `base_path`를 빌드에 전달하므로 프로젝트 사이트와 사용자 사이트·커스텀 도메인을 같은 코드로 처리합니다.
+
+첫 배포 전에 저장소의 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 지정해야 합니다. 설정 전에 먼저 push해 첫 실행이 실패했다면, 설정을 마친 뒤 Actions 화면에서 실패한 실행을 다시 실행하거나 `Deploy wiki to GitHub Pages`를 수동 실행합니다. 워크플로가 성공하면 기본 주소는 `https://yghnsim.github.io/LaborLaw_Wiki/`입니다. 저장소가 공개되어 있으므로 위키 본문과 저장소에 커밋된 원본 자료도 공개 범위에 포함됩니다.
+
+프로젝트 Pages는 origin 루트가 아니라 `/LaborLaw_Wiki/` 아래에 배포되므로 저장소만으로 origin의 `/robots.txt`를 제어할 수 없습니다. 검색엔진 등록이 필요하면 생성된 `https://yghnsim.github.io/LaborLaw_Wiki/sitemap.xml`을 Search Console 등에 직접 제출합니다. 사용자·조직 Pages 또는 커스텀 도메인처럼 사이트가 origin 루트에 배포될 때만 생성기가 유효한 `robots.txt`를 만듭니다.
 
 ## 문서 상태
 
@@ -73,6 +115,6 @@ scripts/lint_wiki.py    의존성 없는 저장소 검사기
 
 ## 자동 검사
 
-GitHub Actions는 먼저 린터 단위 테스트를 실행한 뒤 push와 pull request에서 `scripts/lint_wiki.py`를 실행합니다. 검사는 프론트매터·통제어휘·날짜·태그·구조화 판정 이력, H1·관련 항목, 위키링크·섹션, 색인 수록·소스 수, 출처 ID·원본 경로·해시·URL 조회일, 법령 버전, 경고 상태, UTF-8·NFC를 확인합니다. pull request는 대상 커밋, 일반 push는 직전 커밋을 기준으로 기존 원본 파일과 과거 로그의 불변성도 검사합니다.
+GitHub Actions는 먼저 린터 단위 테스트를 실행한 뒤 push와 pull request에서 `scripts/lint_wiki.py`를 실행합니다. 검사는 프론트매터·통제어휘·날짜·태그·구조화 판정 이력, H1·관련 항목, 위키링크·섹션, 색인 수록·소스 수, 출처 ID·원본 경로·해시·URL 조회일, 법령 버전, 경고 상태, UTF-8·NFC를 확인합니다. pull request는 대상 커밋, 일반 push는 직전 커밋을 기준으로 기존 원본 파일과 과거 로그의 불변성도 검사합니다. 별도의 Pages 워크플로는 웹 링크 해소, 단일 H1, 출처 계보·역참조, 검색 색인, 프로젝트 기준 경로와 `raw/` 미포함을 검사한 뒤에만 배포합니다.
 
 CI 파일 자체의 무력화를 막으려면 GitHub 저장소의 기본 브랜치 ruleset에서 pull request와 Code Owner 승인을 필수로 하고, `Lint wiki / lint`를 required status check로 지정해야 합니다. 우회 권한은 최소화하며, `.github/CODEOWNERS`가 지정한 `scripts/` 전체, `tests/`, 워크플로, `AGENTS.md`, CODEOWNERS 자체의 변경은 `@YgHnSIM`의 승인을 받습니다. PR 검사는 기준 브랜치의 린터를 임시 복사해 먼저 실행한 뒤 현재 브랜치 린터도 실행하며, 두 실행 모두 Python 격리 모드로 저장소 내부 모듈의 import 가로채기를 차단합니다.

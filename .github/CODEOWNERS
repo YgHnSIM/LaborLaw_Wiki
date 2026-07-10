@@ -1,5 +1,8 @@
 /scripts/ @YgHnSIM
 /tests/ @YgHnSIM
+/site/ @YgHnSIM
+/package.json @YgHnSIM
+/package-lock.json @YgHnSIM
 /.github/workflows/ @YgHnSIM
 /.github/CODEOWNERS @YgHnSIM
 /AGENTS.md @YgHnSIM

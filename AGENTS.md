@@ -11,6 +11,10 @@
 LaborLaw_Wiki/
 ├── AGENTS.md              # 이 파일: 스키마 & 운영 지침
 ├── README.md              # 프로젝트 개요와 사용법
+├── package.json           # 웹 빌드 명령과 Node 의존성
+├── package-lock.json      # 재현 가능한 웹 빌드 잠금 파일
+├── site/                  # GitHub Pages 정적 사이트 생성기·화면·테스트
+├── _site/                 # 생성 결과, Git에서 제외
 ├── raw/                   # 원본 소스: 불변, LLM이 수정하지 않음
 │   ├── assets/            # 이미지, PDF 등 첨부파일
 │   └── ...                # 사용자가 추가하는 원본 문서
@@ -328,6 +332,7 @@ key_dates: []
 8. 사용자의 관심사와 맥락을 기억하고 반영합니다.
 9. 기존 `raw/` 파일은 이름 변경·이동·삭제도 수정으로 간주하며 금지합니다. 새 원본 추가만 허용합니다.
 10. 완료 전 `python -I -B scripts/lint_wiki.py`를 실행하고, Git 기준점이 있으면 `--base` 검사도 실행합니다.
+11. 웹 생성기·화면·배포 설정을 바꾸면 `npm test`와 `npm run build`도 실행하고 `_site/`는 커밋하지 않습니다.
 
 ## 9. Git 커밋 메시지 규칙
 
@@ -378,6 +383,9 @@ remove: 임시 강의 초안 삭제
 python -I -B -m unittest discover -s tests -p "test_*.py"
 python -I -B scripts/lint_wiki.py
 python -I -B scripts/lint_wiki.py --base origin/main
+npm ci
+npm test
+npm run build
 ```
 
 첫 명령은 린터 단위 테스트를 실행합니다. 두 번째 명령은 현재 트리의 프론트매터, 태그, 링크·섹션, 색인, 출처 계보, 원본 해시, 법령 버전, 경고 상태, UTF-8·NFC를 검사합니다. 세 번째 명령은 이에 더해 기준점 이후 기존 `raw/` 파일의 수정·삭제·이동 금지, 기존 로그 항목 보존, 위키 변경 시 새 로그 항목 추가를 검사합니다. 검토기한 경과는 기본적으로 경고이며 `--strict-warnings`를 붙이면 오류로 취급합니다.
@@ -386,6 +394,19 @@ python -I -B scripts/lint_wiki.py --base origin/main
 
 `.github/workflows/lint-wiki.yml`은 push와 pull request에서 같은 검사를 실행합니다. pull request에서는 대상 커밋, 일반 push에서는 push 직전 커밋을 `--base`로 사용해 불변성 규칙까지 검사합니다. 최초 push와 수동 실행은 비교 기준 없이 현재 트리를 검사합니다. 오류가 남은 변경은 병합하지 않습니다.
 
+`.github/workflows/pages.yml`은 `main` push와 수동 실행에서 기준 커밋의 신뢰된 린터와 현재 린터, 웹 생성기 테스트와 빌드를 거쳐 GitHub Pages artifact를 배포합니다. `actions/configure-pages`가 제공하는 실제 `base_path`와 `base_url`을 사용하며, 배포 job만 `pages: write`와 `id-token: write` 권한을 가집니다. 저장소 Pages의 Source는 GitHub Actions로 설정합니다.
+
 ### 10.3 줄바꿈·원본 바이트
 
 `.gitattributes`는 위키·운영 문서·스크립트를 LF 텍스트로 정규화하고 `raw/** -text`로 원본의 바이트 자동 변환을 막습니다. 이미 커밋된 원본은 내용뿐 아니라 이름과 위치도 바꾸지 않습니다. 잘못 추가한 원본을 정리해야 할 때는 사용자 승인, 사유를 적은 로그, 별도 커밋이 모두 필요합니다.
+
+### 10.4 웹 생성 규칙
+
+- `wiki/`를 웹 콘텐츠의 단일 원본으로 사용하고 생성된 `_site/`를 직접 수정하거나 커밋하지 않습니다.
+- `overview.md`는 `/`, `index.md`는 `/catalog/`, `log.md`는 `/log/`로 내보냅니다. 출처 페이지 URL은 안정적인 `source_id`를 사용합니다.
+- 위키링크는 파일 stem, 프론트매터 `title`, `aliases`를 모두 해석합니다. 해소되지 않는 링크나 중복 URL이 있으면 빌드를 실패시킵니다.
+- 본문 H1은 레이아웃 H1과 중복하지 않도록 제거하고 최종 HTML마다 H1을 하나만 둡니다.
+- `source_refs`, `related_source_refs`, `superseded_by`는 실제 출처 페이지 링크로 만들고, 출처 페이지에는 일반 페이지의 역참조를 표시합니다.
+- 검색 색인에는 제목·별칭·본문·파일 stem·출처 ID·발행기관·사건번호·의안번호를 포함합니다. `index.md`와 `log.md`의 반복 본문은 검색 가중치 오염을 막기 위해 제외합니다.
+- `raw/` 파일은 Pages artifact에 복사하지 않습니다. 원본 링크는 배포 커밋 SHA에 고정된 GitHub blob URL을 사용합니다.
+- 모든 내부 링크와 정적 자산에는 GitHub Pages의 동적 기준 경로를 적용합니다. 모바일 탐색, 키보드 검색, 콜아웃, 표와 상태 표시는 브라우저 검증 대상입니다.

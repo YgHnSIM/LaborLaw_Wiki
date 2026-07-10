@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: [로그, 변경 이력]
 tags: [type/meta, domain/labor-law, status/active]
 created: 2026-06-01
-updated: 2026-07-10
+updated: 2026-07-11
 status: active
 source_refs: []
 ---
@@ -191,6 +191,14 @@ source_refs: []
 - pull request에서는 기준 브랜치 린터와 현재 린터를 Python 격리 모드로 차례로 실행하도록 `.github/workflows/lint-wiki.yml`을 보강하고, `.github/CODEOWNERS`와 `README.md`에 `scripts/`·테스트·워크플로 변경 승인 및 GitHub ruleset 설정 기준을 기록함.
 - `case_decisions`를 사건번호·결정일 중심의 JSON 스타일 매핑 목록으로 명확히 하고 [[노란봉투법 시행 이후를 가늠해 볼 수 있는 판결]]의 기존 판정 이력을 새 형식으로 이관함.
 - `tests/test_lint_wiki.py`에 구조화 판정 이력, 괄호 순서, 작은따옴표 이스케이프, 일반 문자열의 주석 처리 회귀 테스트를 추가하고 `AGENTS.md`에 지원하는 YAML 부분집합을 명시함.
+
+## [2026-07-11] chore | GitHub Pages 정적 웹 위키 구축
+
+- `site/`에 146개 위키 문서와 1,701개 Obsidian 위키링크를 정적 HTML로 변환하는 Node 기반 생성기, Swiss 편람형 반응형 화면, 로컬 검색, 미리보기 서버와 회귀 테스트를 추가함.
+- `overview.md`를 홈페이지로, `index.md`를 `/catalog/`로, 출처 페이지를 안정적인 `source_id` URL로 만들고, `source_refs` 382건의 근거 패널과 출처별 역참조를 자동 생성하도록 구성함.
+- 원본 39건은 Pages artifact에 복제하지 않고 배포 커밋 SHA에 고정된 GitHub 링크로 연결하며, 검색에는 제목·별칭·본문·출처 ID·발행기관·사건번호·의안번호를 포함함.
+- `.github/workflows/pages.yml`에 위키 검사, 웹 테스트, 동적 GitHub Pages 기준 경로 빌드와 최소 권한 배포를 추가하고 `.gitignore`, `.gitattributes`, `.github/CODEOWNERS`를 웹 산출물과 자산에 맞게 갱신함.
+- `README.md`와 `AGENTS.md`에 로컬 빌드, Pages 최초 설정, URL·출처 계보·원본 제외 규칙을 기록하고 데스크톱·모바일·검색·출처 화면을 실제 브라우저에서 검증함.
 
 ## 관련 항목
 
