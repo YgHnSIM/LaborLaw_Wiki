@@ -249,6 +249,23 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
   assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*padding-left:\s*3\.6rem;/);
 });
 
+test("모바일 문서 메뉴는 하위 문서를 번호와 제목으로 차분하게 구분한다", async () => {
+  const conceptPage = result.wiki.pages.find((page) => page.data.title === "교섭창구 단일화");
+  const html = await fs.readFile(outputPathForRoute(outputDir, conceptPage.route), "utf8");
+  assert.match(html, /class="sidebar-page-index" aria-hidden="true">01<\/span><span class="sidebar-page-label">고용평등<\/span>/);
+
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  assert.match(css, /\.sidebar-pages a\s*\{[^}]*grid-template-columns:\s*2rem minmax\(0, 1fr\);[^}]*text-decoration:\s*none;/);
+  assert.match(css, /\.sidebar-pages a\.is-active\s*\{[^}]*background:\s*var\(--blue\);[^}]*color:\s*var\(--paper\);/);
+
+  const mobileStart = css.indexOf("@media (max-width: 58rem)");
+  const compactStart = css.indexOf("@media (max-width: 38rem)", mobileStart);
+  assert.ok(mobileStart >= 0 && compactStart > mobileStart, "58rem 모바일 스타일 구간");
+  const mobileCss = css.slice(mobileStart, compactStart);
+  assert.match(mobileCss, /\.sidebar-pages li \+ li\s*\{[^}]*border-top:\s*0;/);
+  assert.match(mobileCss, /\.sidebar-pages a\s*\{[^}]*min-height:\s*2\.9rem;/);
+});
+
 test("다음 문서 제목은 화살표 공간을 확보한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   assert.match(css, /\.prev-next \.next strong\s*\{[^}]*margin-right:\s*2rem;/);

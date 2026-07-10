@@ -396,7 +396,8 @@ summary:focus-visible {
   overflow: auto;
   border-top: var(--rule);
   background: var(--paper);
-  scrollbar-width: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .sidebar-pages li + li {
@@ -404,19 +405,45 @@ summary:focus-visible {
 }
 
 .sidebar-pages a {
-  display: block;
-  padding: 0.72rem 1rem 0.72rem 3.65rem;
-  color: var(--blue);
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  min-height: 3rem;
+  padding: 0.68rem 1rem;
+  color: var(--ink);
   font-family: var(--font-serif);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.sidebar-page-index {
+  padding-top: 0.05rem;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.sidebar-page-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .sidebar-pages a:hover,
 .sidebar-pages a.is-active {
-  box-shadow: inset 8px 0 0 var(--blue);
-  text-decoration-thickness: 4px;
+  background: var(--blue);
+  box-shadow: none;
+  color: var(--paper);
+  text-decoration: none;
+}
+
+.sidebar-pages a:hover .sidebar-page-index,
+.sidebar-pages a.is-active .sidebar-page-index {
+  color: var(--paper);
 }
 
 .menu-backdrop {
@@ -1850,6 +1877,23 @@ summary:focus-visible {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .sidebar-pages {
+    max-height: min(42vh, 22rem);
+    padding: 0.3rem 0;
+  }
+
+  .sidebar-pages li + li {
+    border-top: 0;
+  }
+
+  .sidebar-pages a {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    min-height: 2.9rem;
+    padding: 0.52rem 0.85rem;
+    font-size: 0.75rem;
+    line-height: 1.35;
   }
 
   .menu-backdrop {

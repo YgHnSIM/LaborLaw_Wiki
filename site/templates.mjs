@@ -85,9 +85,9 @@ function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
     const pages = wiki.groups[category];
     const current = currentCategory === category;
     const pageList = current
-      ? `<ul class="sidebar-pages">${pages.map((page) => {
+      ? `<ul class="sidebar-pages">${pages.map((page, index) => {
           const active = currentPage?.route === page.route ? ' class="is-active" aria-current="page"' : "";
-          return `<li><a${active} href="${siteHref(basePath, page.route)}">${escapeHtml(pageLabel(page))}</a></li>`;
+          return `<li><a${active} href="${siteHref(basePath, page.route)}"><span class="sidebar-page-index" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span><span class="sidebar-page-label">${escapeHtml(pageLabel(page))}</span></a></li>`;
         }).join("")}</ul>`
       : "";
     return `<li class="sidebar-group${current ? " is-current" : ""}">
