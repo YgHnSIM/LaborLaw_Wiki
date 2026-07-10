@@ -127,7 +127,7 @@ function renderManifest(basePath) {
     scope: normalizeBasePath(basePath),
     display: "standalone",
     background_color: "#FFFFFF",
-    theme_color: "#002FA7",
+    theme_color: "#0000FF",
     icons: [{ src: siteHref(basePath, "/assets/favicon.svg"), sizes: "any", type: "image/svg+xml" }]
   }, null, 2);
 }

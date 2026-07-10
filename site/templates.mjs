@@ -273,7 +273,7 @@ function renderHead({ title, description, canonical, basePath, page, siteName, s
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(title)} · ${escapeHtml(siteName)}</title>
     <meta name="description" content="${escapeAttr(description)}">
-    <meta name="theme-color" content="#002FA7">
+    <meta name="theme-color" content="#0000FF">
     ${noindex ? '<meta name="robots" content="noindex,follow">' : ""}
     <link rel="canonical" href="${escapeAttr(canonical)}">
     <link rel="icon" href="${siteHref(basePath, "/assets/favicon.svg")}" type="image/svg+xml">
@@ -292,7 +292,7 @@ function renderHead({ title, description, canonical, basePath, page, siteName, s
 function renderShell({ wiki, page = null, currentCategory, title, description, canonical, main, basePath, repositoryUrl, siteUrl, initialRail = "문서 개요", pageKind = "page", noindex = false }) {
   const siteName = "대한민국 노동법 위키";
   return `<!doctype html>
-<html lang="ko" data-base-path="${escapeAttr(basePath)}">
+<html lang="ko" data-base-path="${escapeAttr(basePath)}" data-design="brutalist-gazette">
   <head>${renderHead({ title, description, canonical, basePath, page, siteName, siteUrl, pageKind, noindex })}</head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>

@@ -215,6 +215,13 @@ source_refs: []
 - `site/assets/styles.css`에 설명 전용 단일 열 레이아웃을 추가하고 `site/tests/build.test.mjs`에 홈 콘텐츠 범위 회귀 검사를 추가함.
 - `wiki/log.md`에 메인 페이지 간소화 범위와 검증 대상을 새 작업 항목으로 기록함.
 
+## [2026-07-11] chore | Brutalist 법률 공보형 웹 디자인 적용
+
+- `site/assets/styles.css`를 순백·검정·순수 파랑, Arial·Times New Roman·Courier New, 굵은 프레임과 무블러 하드 섀도를 사용하는 Brutalist 법률 공보형으로 전면 개편함.
+- `site/templates.mjs`, `site/build.mjs`, `site/assets/favicon.svg`의 디자인 표식·브라우저 테마·웹 앱 색상을 새 팔레트로 통일함.
+- `site/tests/build.test.mjs`에 팔레트·글꼴·금지 효과·하드 섀도·반응형 메타정보·manifest 계약을 검사하는 디자인 회귀 검사를 보강함.
+- `wiki/log.md`에 디자인 변경 범위와 메인·개념·출처·분류·검색·모바일 브라우저 검증 대상을 기록함.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
