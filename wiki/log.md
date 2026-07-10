@@ -222,6 +222,13 @@ source_refs: []
 - `site/tests/build.test.mjs`에 팔레트·글꼴·금지 효과·하드 섀도·반응형 메타정보·manifest 계약을 검사하는 디자인 회귀 검사를 보강함.
 - `wiki/log.md`에 디자인 변경 범위와 메인·개념·출처·분류·검색·모바일 브라우저 검증 대상을 기록함.
 
+## [2026-07-11] update | D2Coding 글꼴 적용과 모바일 근거 패널 보정
+
+- `site/assets/fonts/`에 NAVER 공식 D2Coding 1.3.2 일반·굵은 TTF 원본과 SIL OFL 1.1 라이선스를 추가하고 전역·인쇄 글꼴을 D2Coding으로 통일함.
+- `site/assets/styles.css`의 608px 이하 근거·역인용 패널에서 펼침 표시용 왼쪽 여백을 보존해 표시가 제목과 겹치지 않도록 수정함.
+- `.gitattributes`에 TTF 바이너리 예외를 추가하고 `site/serve.mjs`에 글꼴 MIME 유형을 지정했으며 `site/tests/build.test.mjs`에서 공식 글꼴 해시·산출물 복사·라이선스·모바일 여백을 회귀 검사함.
+- `wiki/log.md`에 글꼴 자산과 모바일 표시 수정 범위 및 실제 브라우저 검증 대상을 기록함.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -239,6 +240,15 @@ test("문서 메타정보 바의 외곽선을 반응형 행에서도 닫는다",
   assert.match(css, /\.page-facts > span:nth-child\(n \+ 3\)\s*\{[^}]*border-top: var\(--rule\);/);
 });
 
+test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다", async () => {
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  const mobileStart = css.indexOf("@media (max-width: 38rem)");
+  const printStart = css.indexOf("@media print", mobileStart);
+  assert.ok(mobileStart >= 0 && printStart > mobileStart, "38rem 모바일 스타일 구간");
+  const mobileCss = css.slice(mobileStart, printStart);
+  assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*padding-left:\s*3\.6rem;/);
+});
+
 test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다", async () => {
   const sourceFiles = [
     path.join(rootDir, "site", "assets", "styles.css"),
@@ -257,17 +267,39 @@ test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다",
   for (const color of combined.match(/#[0-9a-f]{3,8}\b/gi) ?? []) {
     assert.ok(allowedColors.has(normalizeHex(color)), `허용되지 않은 색상 ${color}`);
   }
-  assert.match(css, /--font-sans:\s*Arial, sans-serif;/);
-  assert.match(css, /--font-serif:\s*"Times New Roman", serif;/);
-  assert.match(css, /--font-mono:\s*"Courier New", monospace;/);
+  assert.match(css, /--font-sans:\s*"D2Coding", monospace;/);
+  assert.match(css, /--font-serif:\s*"D2Coding", monospace;/);
+  assert.match(css, /--font-mono:\s*"D2Coding", monospace;/);
+  assert.doesNotMatch(css, /Arial|Times New Roman|Courier New/i);
   assert.match(css, /--shadow:\s*8px 8px 0 #000;/);
   assert.match(css, /--shadow-blue:\s*8px 8px 0 #0000ff;/);
   assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient|\brgba?\(|\bhsla?\(|oklch\(|color-mix\(|text-shadow|filter:\s*(?:blur|drop-shadow)|transition\s*:/i);
   for (const radius of css.matchAll(/border-radius:\s*([^;]+);/gi)) {
     assert.equal(radius[1].trim(), "0", "둥근 모서리를 사용할 수 없습니다");
   }
-  assert.doesNotMatch(css, /@font-face|\.woff2?\b|fonts\.(?:googleapis|gstatic)\.com/i);
+  assert.doesNotMatch(css, /fonts\.(?:googleapis|gstatic)\.com|https?:\/\//i);
   const manifest = JSON.parse(await fs.readFile(path.join(outputDir, "manifest.webmanifest"), "utf8"));
   assert.equal(manifest.background_color, "#FFFFFF");
   assert.equal(manifest.theme_color, "#0000FF");
+});
+
+test("공식 D2Coding 글꼴과 OFL 라이선스를 Pages 산출물에 보존한다", async () => {
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  assert.match(css, /@font-face\s*\{[^}]*font-family:\s*"D2Coding";[^}]*D2Coding-Regular\.ttf[^}]*font-weight:\s*400;/s);
+  assert.match(css, /@font-face\s*\{[^}]*font-family:\s*"D2Coding";[^}]*D2Coding-Bold\.ttf[^}]*font-weight:\s*700;/s);
+
+  const expectedFonts = [
+    ["D2Coding-Regular.ttf", "8B1B23E5DE4DFF652FB0B938528150D2F531EDFDA281D3944618B655711ABA84"],
+    ["D2Coding-Bold.ttf", "DDE75DF435F061EAA0F6DB84B1C30866AAA442D7038AAA62EA3C2BE92F15D87D"]
+  ];
+  for (const [fileName, expectedHash] of expectedFonts) {
+    const source = await fs.readFile(path.join(rootDir, "site", "assets", "fonts", fileName));
+    const generated = await fs.readFile(path.join(outputDir, "assets", "fonts", fileName));
+    assert.deepEqual(generated, source, `${fileName} 빌드 복사본`);
+    assert.equal(createHash("sha256").update(source).digest("hex").toUpperCase(), expectedHash, `${fileName} 공식 배포본`);
+  }
+
+  const license = await fs.readFile(path.join(outputDir, "assets", "fonts", "OFL.txt"), "utf8");
+  assert.match(license, /Copyright \(c\) 2015, NAVER Corporation/);
+  assert.match(license, /SIL OPEN FONT LICENSE[\s\S]*Version 1\.1/);
 });

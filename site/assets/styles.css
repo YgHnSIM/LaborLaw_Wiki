@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "D2Coding";
+  src: url("./fonts/D2Coding-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "D2Coding";
+  src: url("./fonts/D2Coding-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --paper: #fff;
@@ -12,9 +28,9 @@
   --sidebar-width: 19rem;
   --rail-width: 4.5rem;
   --content-pad: clamp(0.85rem, 2.8vw, 3rem);
-  --font-sans: Arial, sans-serif;
-  --font-serif: "Times New Roman", serif;
-  --font-mono: "Courier New", monospace;
+  --font-sans: "D2Coding", monospace;
+  --font-serif: "D2Coding", monospace;
+  --font-mono: "D2Coding", monospace;
   --rule: 2px solid #000;
   --frame: 4px solid #000;
   --blue-frame: 4px solid #0000ff;
@@ -2071,11 +2087,7 @@ summary:focus-visible {
   .evidence-panel summary,
   .cited-by-panel summary {
     padding: 0.7rem;
-  }
-
-  .evidence-panel summary::before,
-  .cited-by-panel summary::before {
-    margin-right: 0.65rem;
+    padding-left: 3.6rem;
   }
 
   .evidence-panel li {
@@ -2254,7 +2266,7 @@ summary:focus-visible {
   body {
     background: #fff;
     color: #000;
-    font-family: "Times New Roman", serif;
+    font-family: "D2Coding", monospace;
   }
 
   .page-frame {
