@@ -308,8 +308,10 @@ function renderShell({ wiki, page = null, currentCategory, title, description, c
 
 export function renderPage({ page, rendered, wiki, basePath, siteUrl, repositoryUrl, repositoryRef }) {
   const category = CATEGORY_META[page.category];
-  const folio = page.route === "/" ? "00" : category.number;
+  const isHome = page.route === "/";
+  const folio = isHome ? "00" : category.number;
   const canonical = absoluteUrl(siteUrl, page.route);
+  const articleHtml = isHome ? rendered.html.split(/<h2(?:\s|>)/, 1)[0].trim() : rendered.html;
   const aliases = page.data.aliases.length ? `<p class="aliases"><span>다른 이름</span>${page.data.aliases.map((alias) => `<span>${escapeHtml(alias)}</span>`).join("")}</p>` : "";
   const metaFacts = [
     pageStatusBadge(page),
@@ -328,14 +330,14 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
         <div class="page-facts">${metaFacts}</div>
       </div>
     </header>
-    ${page.route === "/" ? renderHomeStats(wiki, basePath) : ""}
+    ${isHome ? renderHomeStats(wiki, basePath) : ""}
     ${renderStatusNotice(page)}
     ${renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef })}
     ${renderEvidencePanel(page, basePath)}
     ${renderCitedBy(page, basePath)}
-    <div class="article-layout">
-      <article class="prose">${rendered.html}</article>
-      ${renderToc(rendered.toc, basePath, page.route)}
+    <div class="article-layout${isHome ? " home-description-layout" : ""}">
+      <article class="prose${isHome ? " home-description" : ""}">${articleHtml}</article>
+      ${isHome ? "" : renderToc(rendered.toc, basePath, page.route)}
     </div>
     ${renderPrevNext(page, wiki, basePath)}
   </main>`;
@@ -350,7 +352,7 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
     basePath,
     repositoryUrl,
     siteUrl,
-    initialRail: rendered.toc[0]?.title || page.data.title
+    initialRail: isHome ? page.data.title : rendered.toc[0]?.title || page.data.title
   });
 }
 

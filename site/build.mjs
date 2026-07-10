@@ -81,7 +81,11 @@ function buildSearchIndex(wiki, basePath) {
     sourceId: page.data.source_id || "",
     publisher: page.data.publisher || "",
     metadata: searchMetadata(page),
-    body: ["index.md", "log.md"].includes(page.relativePath) ? "" : page.searchText
+    body: ["index.md", "log.md"].includes(page.relativePath)
+      ? ""
+      : page.route === "/"
+        ? page.excerpt
+        : page.searchText
   }));
 }
 

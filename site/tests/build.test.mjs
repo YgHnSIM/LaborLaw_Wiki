@@ -87,7 +87,17 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
     assert.match(html, /href="\/LaborLaw_Wiki\/assets\/styles\.css"/);
     assert.match(html, /src="\/LaborLaw_Wiki\/assets\/app\.js"/);
     assert.match(html, /href="https:\/\/example\.test\/LaborLaw_Wiki\//);
-    assert.match(html, /class="page-toc"/);
+    if (page.route === "/") {
+      const article = html.match(/<article class="prose home-description">([\s\S]*?)<\/article>/)?.[1];
+      assert.ok(article, "홈 설명 본문");
+      assert.match(article, /대한민국 노동법의 법령, 판례, 행정해석/);
+      assert.doesNotMatch(article, /<h2/);
+      assert.doesNotMatch(html, /class="page-toc"/);
+      assert.doesNotMatch(html, /기준일과 현재 상태|주요 영역|최근 보강 내용|검토 대기열|탐색과 운영/);
+      assert.match(html, /class="article-layout home-description-layout"/);
+    } else {
+      assert.match(html, /class="page-toc"/);
+    }
     assert.match(html, /<dialog[^>]+aria-labelledby="search-dialog-title"/);
   }
 });
@@ -147,6 +157,10 @@ test("검색 색인은 제목·별칭·출처 ID·사건번호를 보존한다",
   const worker = index.find((entry) => entry.title === "사용자성");
   assert.ok(worker.aliases.includes("노조법상 사용자성"));
   assert.match(worker.body, /실질적·구체적으로 지배·결정/);
+
+  const home = index.find((entry) => entry.url === basePath);
+  assert.equal(home.body, home.excerpt);
+  assert.doesNotMatch(home.body, /기준일과 현재 상태|주요 영역|최근 보강 내용/);
 
   const law = index.find((entry) => entry.sourceId === "SRC-D3A0A79006");
   assert.equal(law.publisher, "국가법령정보센터");
