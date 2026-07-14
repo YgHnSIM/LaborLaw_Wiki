@@ -19,7 +19,9 @@ wiki/** text eol=lf
 scripts/** text eol=lf
 .github/** text eol=lf
 site/** text eol=lf
-site/assets/fonts/*.ttf -text -eol
+site/assets/fonts/** -text -eol
+site/assets/fonts/**/*.md text eol=lf
+site/assets/fonts/**/*.txt text eol=lf
 
 # Source evidence is immutable at the byte level, including Markdown captures.
 raw/** -text -eol

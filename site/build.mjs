@@ -156,7 +156,7 @@ export async function buildSite(options = {}) {
 
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(outputDir, { recursive: true });
-  await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"), { exclude: new Set(["fonts"]) });
+  await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"));
 
   await Promise.all(renderedPages.map(async ({ page, rendered }) => {
     const html = renderPage({ page, rendered, wiki, basePath, siteUrl, repositoryUrl, repositoryRef });

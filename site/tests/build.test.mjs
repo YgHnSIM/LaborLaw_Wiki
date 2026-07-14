@@ -367,8 +367,10 @@ test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다",
   }
   assert.match(css, /--font-sans:\s*Arial, system-ui, sans-serif;/);
   assert.match(css, /--font-serif:\s*"Times New Roman", serif;/);
+  assert.match(css, /--font-body:\s*"MaruBuri", "Times New Roman", serif;/);
   assert.match(css, /--font-mono:\s*"Courier New", monospace;/);
-  assert.doesNotMatch(css, /@font-face|D2Coding/i);
+  assert.match(css, /@font-face[\s\S]*font-family:\s*"MaruBuri"/);
+  assert.doesNotMatch(css, /D2Coding/i);
   assert.match(css, /--shadow:\s*8px 8px 0 #000;/);
   assert.match(css, /--shadow-blue:\s*8px 8px 0 #0000ff;/);
   assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient|\brgba?\(|\bhsla?\(|oklch\(|color-mix\(|text-shadow|filter:\s*(?:blur|drop-shadow)|transition\s*:/i);
@@ -381,14 +383,34 @@ test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다",
   assert.equal(manifest.theme_color, "#0000FF");
 });
 
-test("시스템 글꼴과 정적 자산 예산을 지킨다", async () => {
+test("로컬 본문 글꼴과 정적 자산 예산을 지킨다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
-  assert.doesNotMatch(css, /@font-face|D2Coding/i);
-  assert.equal(await fs.stat(path.join(outputDir, "assets", "fonts")).catch(() => null), null);
+  assert.match(css, /url\("\.\/fonts\/maru-buri\/MaruBuri-Regular\.otf"\)/);
+  assert.match(css, /url\("\.\/fonts\/maru-buri\/MaruBuri-Bold\.otf"\)/);
+  assert.doesNotMatch(css, /D2Coding/i);
+  const fontDir = path.join(outputDir, "assets", "fonts", "maru-buri");
+  const fontFiles = ["MaruBuri-Regular.otf", "MaruBuri-Bold.otf"];
+  const fontStats = await Promise.all(fontFiles.map((file) => fs.stat(path.join(fontDir, file))));
+  const fontHeaders = await Promise.all(fontFiles.map(async (file) => {
+    const handle = await fs.open(path.join(fontDir, file), "r");
+    try {
+      const header = Buffer.alloc(4);
+      await handle.read(header, 0, header.length, 0);
+      return header.toString("ascii");
+    } finally {
+      await handle.close();
+    }
+  }));
+  assert.deepEqual(fontHeaders, ["OTTO", "OTTO"]);
+  const license = await fs.readFile(path.join(fontDir, "OFL.txt"), "utf8");
+  assert.match(license, /Reserved Font Name[\s\S]*MaruBuri/);
+  assert.match(license, /SIL OPEN FONT LICENSE Version 1\.1/);
   const cssSize = (await fs.stat(path.join(outputDir, "assets", "styles.css"))).size;
   const appSize = (await fs.stat(path.join(outputDir, "assets", "app.js"))).size;
   const searchSize = (await fs.stat(path.join(outputDir, "search.json"))).size;
+  const fontSize = fontStats.reduce((total, stat) => total + stat.size, 0);
   assert.ok(cssSize < 80_000, `CSS ${cssSize} bytes`);
   assert.ok(appSize < 30_000, `JavaScript ${appSize} bytes`);
   assert.ok(searchSize < 600_000, `검색 색인 ${searchSize} bytes`);
+  assert.ok(fontSize < 1_500_000, `본문 글꼴 ${fontSize} bytes`);
 });

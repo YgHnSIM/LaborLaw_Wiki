@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "MaruBuri";
+  src: url("./fonts/maru-buri/MaruBuri-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "MaruBuri";
+  src: url("./fonts/maru-buri/MaruBuri-Bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --paper: #fff;
@@ -14,6 +30,7 @@
   --content-pad: clamp(0.85rem, 2.8vw, 3rem);
   --font-sans: Arial, system-ui, sans-serif;
   --font-serif: "Times New Roman", serif;
+  --font-body: "MaruBuri", "Times New Roman", serif;
   --font-mono: "Courier New", monospace;
   --rule: 2px solid #000;
   --frame: 4px solid #000;
@@ -1151,7 +1168,7 @@ summary:focus-visible {
 
 .prose {
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-body);
   font-size: clamp(1.05rem, 0.32vw + 0.98rem, 1.15rem);
   line-height: 1.78;
   word-break: keep-all;
@@ -1200,9 +1217,9 @@ summary:focus-visible {
 .prose h3 {
   margin: 3rem 0 1rem;
   color: var(--blue);
-  font-family: var(--font-serif);
+  font-family: var(--font-body);
   font-size: 1.45rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1.25;
   text-decoration: underline;
   text-decoration-thickness: 3px;
@@ -1217,7 +1234,7 @@ summary:focus-visible {
 }
 
 .prose strong {
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .prose a {
@@ -2850,6 +2867,7 @@ summary:focus-visible {
 .page-summary {
   max-width: 56rem;
   margin: 1rem 0 0;
+  font-family: var(--font-body);
   font-size: clamp(1rem, 0.25vw + 0.95rem, 1.125rem);
   font-weight: 700;
   line-height: 1.6;
