@@ -179,8 +179,10 @@ function setupSearch() {
   const guidance = dialog?.querySelector("#search-guidance");
   const statusText = dialog?.querySelector("[data-search-status-text]");
   const filterPanel = dialog?.querySelector("[data-search-filter-panel]");
+  const filterToggle = dialog?.querySelector("[data-search-filter-toggle]");
   const filterSummary = dialog?.querySelector("[data-search-filter-summary]");
   const filterReset = dialog?.querySelector("[data-search-filter-reset]");
+  const filterDone = dialog?.querySelector("[data-search-filter-done]");
   const categoryFilter = dialog?.querySelector("[data-search-category]");
   const statusFilter = dialog?.querySelector("[data-search-status]");
   const areaFilter = dialog?.querySelector("[data-search-area]");
@@ -189,9 +191,10 @@ function setupSearch() {
   const dateKindFilter = dialog?.querySelector("[data-search-date-kind]");
   const openButtons = document.querySelectorAll("[data-search-open]");
   const closeButton = dialog?.querySelector("[data-search-close]");
-  if (!dialog || !input || !results || !guidance || !statusText || !filterPanel || !filterSummary || !filterReset || !categoryFilter || !statusFilter || !areaFilter || !sourceTypeFilter || !legalStatusFilter || !dateKindFilter) return;
+  if (!dialog || !input || !results || !guidance || !statusText || !filterPanel || !filterToggle || !filterSummary || !filterReset || !filterDone || !categoryFilter || !statusFilter || !areaFilter || !sourceTypeFilter || !legalStatusFilter || !dateKindFilter) return;
 
   const filterControls = [categoryFilter, statusFilter, areaFilter, sourceTypeFilter, legalStatusFilter, dateKindFilter];
+  const mobileFilterMedia = window.matchMedia("(max-width: 38rem)");
 
   let documents = null;
   let loading = null;
@@ -263,10 +266,32 @@ function setupSearch() {
     dateKind: dateKindFilter.value
   });
 
+  const filterIsOpen = () => filterToggle.getAttribute("aria-expanded") === "true";
+
+  const syncFilterOverlayState = () => {
+    const blocksResults = filterIsOpen() && mobileFilterMedia.matches;
+    results.inert = blocksResults;
+    if (blocksResults) {
+      results.setAttribute("aria-hidden", "true");
+      input.setAttribute("aria-expanded", "false");
+    } else {
+      results.removeAttribute("aria-hidden");
+      if (results.querySelector(".search-result")) input.setAttribute("aria-expanded", "true");
+    }
+  };
+
+  const setFilterOpen = (open, { focusToggle = false } = {}) => {
+    filterToggle.setAttribute("aria-expanded", String(open));
+    filterPanel.hidden = !open;
+    syncFilterOverlayState();
+    if (!open && focusToggle) filterToggle.focus();
+  };
+
   const syncFilterUi = () => {
     const activeCount = filterControls.filter((filter) => filter.value).length;
-    filterSummary.textContent = activeCount ? `${activeCount}개 적용` : "전체";
-    filterPanel.classList.toggle("has-active-filters", activeCount > 0);
+    filterSummary.textContent = String(activeCount);
+    filterToggle.setAttribute("aria-label", activeCount ? `필터, ${activeCount}개 적용` : "필터, 적용 없음");
+    filterToggle.classList.toggle("has-active-filters", activeCount > 0);
     filterReset.disabled = activeCount === 0;
   };
 
@@ -358,18 +383,21 @@ function setupSearch() {
     if (!query && !hasFilters) {
       guidance.textContent = "제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.";
       statusText.textContent = "";
+      filterDone.textContent = "결과 보기";
       syncUrl();
       return;
     }
 
     guidance.textContent = "검색 중…";
     statusText.textContent = "검색 중입니다.";
+    filterDone.textContent = "검색 중…";
     try {
       const matches = await searchIndex(query, activeFilters, visibleLimit);
       if (currentRequest !== renderRequest) return;
       const shown = Math.min(visibleLimit, matches.total);
       guidance.textContent = `검색 결과 ${matches.total}개 · ${shown}개 표시`;
       statusText.textContent = `검색 결과 ${matches.total}개 중 ${shown}개를 표시합니다.`;
+      filterDone.textContent = `${matches.total}개 결과 보기`;
       if (!matches.total) {
         const empty = document.createElement("p");
         empty.className = "search-empty";
@@ -393,10 +421,12 @@ function setupSearch() {
       }
       results.append(fragment);
       input.setAttribute("aria-expanded", "true");
+      syncFilterOverlayState();
       syncUrl();
     } catch (error) {
       guidance.textContent = "검색 색인을 불러오지 못했습니다.";
       statusText.textContent = "검색 색인을 불러오지 못했습니다.";
+      filterDone.textContent = "결과 보기";
       const empty = document.createElement("p");
       empty.className = "search-empty";
       empty.textContent = "페이지를 새로고침한 뒤 다시 시도해 주세요.";
@@ -421,7 +451,7 @@ function setupSearch() {
     if (preset.status !== undefined) statusFilter.value = preset.status;
     if (preset.category !== undefined) categoryFilter.value = preset.category;
     visibleLimit = 12;
-    filterPanel.open = false;
+    setFilterOpen(false);
     syncFilterUi();
     if (!dialog.open) dialog.showModal();
     window.setTimeout(() => input.focus(), 0);
@@ -429,6 +459,7 @@ function setupSearch() {
   };
 
   const close = () => {
+    setFilterOpen(false);
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");
     if (dialog.open) dialog.close();
@@ -441,6 +472,8 @@ function setupSearch() {
     category: button.dataset.searchPresetCategory
   })));
   closeButton?.addEventListener("click", close);
+  filterToggle.addEventListener("click", () => setFilterOpen(!filterIsOpen()));
+  filterDone.addEventListener("click", () => setFilterOpen(false, { focusToggle: true }));
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) close();
   });
@@ -457,10 +490,15 @@ function setupSearch() {
   filterReset.addEventListener("click", () => {
     filterControls.forEach((filter) => { filter.value = ""; });
     visibleLimit = 12;
-    filterPanel.open = false;
+    setFilterOpen(false);
     syncFilterUi();
     render();
     input.focus();
+  });
+  dialog.addEventListener("cancel", (event) => {
+    if (!filterIsOpen()) return;
+    event.preventDefault();
+    setFilterOpen(false, { focusToggle: true });
   });
   input.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {
@@ -475,9 +513,11 @@ function setupSearch() {
     }
   });
   dialog.addEventListener("close", () => {
+    setFilterOpen(false);
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");
   });
+  mobileFilterMedia.addEventListener?.("change", syncFilterOverlayState);
   window.addEventListener("keydown", (event) => {
     const target = event.target;
     const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;

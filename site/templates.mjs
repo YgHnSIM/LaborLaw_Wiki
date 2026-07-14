@@ -142,8 +142,12 @@ function renderSearchDialog(basePath) {
         ${svgIcon("search")}
         <input id="search-input" type="search" role="combobox" aria-autocomplete="list" aria-controls="search-results" aria-expanded="false" aria-describedby="search-guidance search-status" autocomplete="off" spellcheck="false" placeholder="개념, 사건번호, 출처 ID 검색" data-search-input>
       </label>
-      <details class="search-filter-panel" data-search-filter-panel>
-        <summary><span>필터</span><strong data-search-filter-summary>전체</strong></summary>
+      <div class="search-command-bar">
+        <p class="search-guidance" id="search-guidance">제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.</p>
+        <button type="button" class="search-filter-toggle" data-search-filter-toggle aria-expanded="false" aria-controls="search-filter-sheet" aria-label="필터, 적용 없음"><span>필터</span><strong data-search-filter-summary>0</strong></button>
+      </div>
+      <section class="search-filter-sheet" id="search-filter-sheet" data-search-filter-panel aria-labelledby="search-filter-sheet-title" hidden>
+        <header class="search-filter-sheet-head"><strong id="search-filter-sheet-title">필터 편집</strong></header>
         <div class="search-filters" aria-label="검색 필터">
           <label><span>분류</span><select data-search-category><option value="">전체</option>${categoryOptions}</select></label>
           <label><span>상태</span><select data-search-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>
@@ -151,10 +155,12 @@ function renderSearchDialog(basePath) {
           <label><span>자료</span><select data-search-source-type><option value="">전체</option>${sourceTypeOptions}</select></label>
           <label><span>법적 상태</span><select data-search-legal-status><option value="">전체</option><option value="current">현행</option><option value="amended">개정됨</option><option value="repealed">폐지됨</option><option value="overruled">판례 변경</option><option value="superseded">대체됨</option><option value="uncertain">확인 필요</option></select></label>
           <label><span>날짜 정보</span><select data-search-date-kind><option value="">전체</option><option value="asOfDate">지식 기준일 있음</option><option value="effectiveDate">시행일 있음</option><option value="decisionDate">결정일 있음</option></select></label>
-          <button type="button" class="search-filter-reset" data-search-filter-reset disabled>필터 초기화</button>
         </div>
-      </details>
-      <p class="search-guidance" id="search-guidance">제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.</p>
+        <div class="search-filter-actions">
+          <button type="button" class="search-filter-reset" data-search-filter-reset disabled>필터 초기화</button>
+          <button type="button" class="search-filter-done" data-search-filter-done>결과 보기</button>
+        </div>
+      </section>
       <p class="sr-only" id="search-status" role="status" aria-live="polite" aria-atomic="true" data-search-status-text></p>
       <div class="search-results" id="search-results" role="listbox" aria-label="검색 결과" data-search-results></div>
     </dialog>`;
