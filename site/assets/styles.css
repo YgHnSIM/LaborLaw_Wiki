@@ -14,6 +14,22 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "D2Coding";
+  src: url("./fonts/D2Coding-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "D2Coding";
+  src: url("./fonts/D2Coding-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --paper: #fff;
@@ -31,6 +47,7 @@
   --font-sans: Arial, system-ui, sans-serif;
   --font-serif: "Times New Roman", serif;
   --font-body: "MaruBuri", "Times New Roman", serif;
+  --font-heading: "D2Coding", "Courier New", monospace;
   --font-mono: "Courier New", monospace;
   --rule: 2px solid #000;
   --frame: 4px solid #000;
@@ -64,6 +81,15 @@ body {
 
 body.menu-open {
   overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
 }
 
 button,
@@ -561,7 +587,7 @@ summary:focus-visible {
 .page-hero h1 {
   max-width: 68rem;
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-heading);
   font-size: clamp(2.8rem, 6.6vw, 6.8rem);
   font-weight: 900;
   letter-spacing: -0.055em;
@@ -753,7 +779,7 @@ summary:focus-visible {
 }
 
 .home-dashboard h2 {
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: clamp(1.45rem, 3vw, 2.2rem);
   line-height: 1;
 }
@@ -1065,7 +1091,7 @@ summary:focus-visible {
   align-self: center;
   margin: 0;
   padding: 0 1rem;
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: 1rem;
   font-weight: 900;
 }
@@ -1126,7 +1152,7 @@ summary:focus-visible {
 .related-sources h3 {
   margin: 0 0 0.65rem;
   color: var(--ink);
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: 0.68rem;
   font-weight: 900;
 }
@@ -1227,7 +1253,7 @@ summary:focus-visible {
   margin: 4.5rem 0 1.4rem;
   padding-top: 0.9rem;
   border-top: var(--frame);
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: clamp(1.8rem, 3vw, 2.8rem);
   font-weight: 900;
   letter-spacing: -0.045em;
@@ -1249,7 +1275,7 @@ summary:focus-visible {
 .prose h3 {
   margin: 3rem 0 1rem;
   color: var(--blue);
-  font-family: var(--font-body);
+  font-family: var(--font-heading);
   font-size: 1.45rem;
   font-weight: 700;
   line-height: 1.25;
@@ -1260,7 +1286,7 @@ summary:focus-visible {
 
 .prose h4 {
   margin: 2.2rem 0 0.8rem;
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: 1.05rem;
   font-weight: 900;
 }
@@ -1553,7 +1579,7 @@ summary:focus-visible {
 
 .category-hero h1 {
   margin: 0 0 1.2rem;
-  font-family: var(--font-serif);
+  font-family: var(--font-heading);
   font-size: clamp(3.5rem, 9vw, 8rem);
   font-weight: 900;
   letter-spacing: -0.065em;
@@ -1680,7 +1706,7 @@ summary:focus-visible {
 .document-grid h2 {
   margin: 0 0 1rem;
   color: var(--blue);
-  font-family: var(--font-serif);
+  font-family: var(--font-heading);
   font-size: 1.45rem;
   font-weight: 900;
   line-height: 1.2;
@@ -1813,7 +1839,7 @@ summary:focus-visible {
   align-self: center;
   margin: 0;
   padding: 0 1rem;
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: 1.05rem;
   font-weight: 900;
 }
@@ -2097,7 +2123,7 @@ summary:focus-visible {
 .search-result h3 {
   margin: 0 0 0.45rem;
   color: var(--blue);
-  font-family: var(--font-serif);
+  font-family: var(--font-heading);
   font-size: 1.1rem;
   font-weight: 900;
   line-height: 1.3;
@@ -2167,7 +2193,7 @@ summary:focus-visible {
 .error-main h1 {
   max-width: 34rem;
   margin: 0 0 1.2rem;
-  font-family: var(--font-serif);
+  font-family: var(--font-heading);
   font-size: clamp(2.8rem, 6vw, 6rem);
   font-weight: 900;
   letter-spacing: -0.06em;
@@ -3083,7 +3109,7 @@ summary:focus-visible {
 }
 
 .home-search h2 {
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-size: clamp(1.4rem, 2vw, 2rem);
   line-height: 1.05;
 }
