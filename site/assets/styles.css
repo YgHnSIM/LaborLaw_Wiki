@@ -448,6 +448,38 @@ summary:focus-visible {
   color: var(--paper);
 }
 
+.sidebar-pages .sidebar-pages-all {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  border-top: var(--frame);
+}
+
+.sidebar-pages .sidebar-pages-all a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-sans);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.sidebar-pages-all strong {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.sidebar-pages .sidebar-pages-all a:hover,
+.sidebar-pages .sidebar-pages-all a:focus-visible {
+  background: var(--blue);
+  color: var(--paper);
+}
+
 .menu-backdrop {
   display: none;
 }

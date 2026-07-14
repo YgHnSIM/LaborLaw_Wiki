@@ -100,7 +100,7 @@ function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
           const index = pages.indexOf(page);
           const active = currentPage?.route === page.route ? ' class="is-active" aria-current="page"' : "";
           return `<li><a${active} href="${siteHref(basePath, page.route)}"><span class="sidebar-page-index" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span><span class="sidebar-page-label">${escapeHtml(pageLabel(page))}</span></a></li>`;
-        }).join("")}<li class="sidebar-pages-all"><a href="${siteHref(basePath, `/${category}/`)}">전체 ${pages.length}개 문서 보기</a></li></ul>`
+        }).join("")}<li class="sidebar-pages-all"><a href="${siteHref(basePath, `/${category}/`)}" aria-label="전체 ${pages.length}개 문서 보기"><span>전체</span><strong>${pages.length}개 문서 보기</strong></a></li></ul>`
       : "";
     return `<li class="sidebar-group${current ? " is-current" : ""}">
       <a class="sidebar-group-link" href="${siteHref(basePath, `/${category}/`)}">
