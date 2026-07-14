@@ -107,6 +107,10 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
       assert.match(html, /class="mobile-toc"/);
     }
     assert.match(html, /<dialog[^>]+aria-labelledby="search-dialog-title"/);
+    assert.match(html, /data-search-close aria-label="검색 닫기"/);
+    assert.match(html, /<details class="search-filter-panel" data-search-filter-panel>/);
+    assert.match(html, /data-search-filter-summary>전체<\/strong>/);
+    assert.match(html, /data-search-filter-reset disabled>필터 초기화<\/button>/);
   }
 });
 

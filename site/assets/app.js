@@ -178,6 +178,9 @@ function setupSearch() {
   const results = dialog?.querySelector("[data-search-results]");
   const guidance = dialog?.querySelector("#search-guidance");
   const statusText = dialog?.querySelector("[data-search-status-text]");
+  const filterPanel = dialog?.querySelector("[data-search-filter-panel]");
+  const filterSummary = dialog?.querySelector("[data-search-filter-summary]");
+  const filterReset = dialog?.querySelector("[data-search-filter-reset]");
   const categoryFilter = dialog?.querySelector("[data-search-category]");
   const statusFilter = dialog?.querySelector("[data-search-status]");
   const areaFilter = dialog?.querySelector("[data-search-area]");
@@ -186,7 +189,9 @@ function setupSearch() {
   const dateKindFilter = dialog?.querySelector("[data-search-date-kind]");
   const openButtons = document.querySelectorAll("[data-search-open]");
   const closeButton = dialog?.querySelector("[data-search-close]");
-  if (!dialog || !input || !results || !guidance || !statusText || !categoryFilter || !statusFilter || !areaFilter || !sourceTypeFilter || !legalStatusFilter || !dateKindFilter) return;
+  if (!dialog || !input || !results || !guidance || !statusText || !filterPanel || !filterSummary || !filterReset || !categoryFilter || !statusFilter || !areaFilter || !sourceTypeFilter || !legalStatusFilter || !dateKindFilter) return;
+
+  const filterControls = [categoryFilter, statusFilter, areaFilter, sourceTypeFilter, legalStatusFilter, dateKindFilter];
 
   let documents = null;
   let loading = null;
@@ -257,6 +262,13 @@ function setupSearch() {
     legalStatus: legalStatusFilter.value,
     dateKind: dateKindFilter.value
   });
+
+  const syncFilterUi = () => {
+    const activeCount = filterControls.filter((filter) => filter.value).length;
+    filterSummary.textContent = activeCount ? `${activeCount}개 적용` : "전체";
+    filterPanel.classList.toggle("has-active-filters", activeCount > 0);
+    filterReset.disabled = activeCount === 0;
+  };
 
   const filterEntry = (entry, active) => (!active.category || entry.category === active.category)
     && (!active.status || entry.status === active.status)
@@ -342,6 +354,7 @@ function setupSearch() {
     results.replaceChildren();
     const activeFilters = filters();
     const hasFilters = Object.values(activeFilters).some(Boolean);
+    syncFilterUi();
     if (!query && !hasFilters) {
       guidance.textContent = "제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.";
       statusText.textContent = "";
@@ -408,6 +421,8 @@ function setupSearch() {
     if (preset.status !== undefined) statusFilter.value = preset.status;
     if (preset.category !== undefined) categoryFilter.value = preset.category;
     visibleLimit = 12;
+    filterPanel.open = false;
+    syncFilterUi();
     if (!dialog.open) dialog.showModal();
     window.setTimeout(() => input.focus(), 0);
     render();
@@ -434,10 +449,19 @@ function setupSearch() {
     visibleLimit = 12;
     debounceTimer = window.setTimeout(render, 90);
   });
-  [categoryFilter, statusFilter, areaFilter, sourceTypeFilter, legalStatusFilter, dateKindFilter].forEach((filter) => filter.addEventListener("change", () => {
+  filterControls.forEach((filter) => filter.addEventListener("change", () => {
     visibleLimit = 12;
+    syncFilterUi();
     render();
   }));
+  filterReset.addEventListener("click", () => {
+    filterControls.forEach((filter) => { filter.value = ""; });
+    visibleLimit = 12;
+    filterPanel.open = false;
+    syncFilterUi();
+    render();
+    input.focus();
+  });
   input.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -474,6 +498,7 @@ function setupSearch() {
   sourceTypeFilter.value = url.searchParams.get("search-source") || "";
   legalStatusFilter.value = url.searchParams.get("search-legal") || "";
   dateKindFilter.value = url.searchParams.get("search-date") || "";
+  syncFilterUi();
   if (url.searchParams.get("search") === "1" || input.value || categoryFilter.value || statusFilter.value || areaFilter.value || sourceTypeFilter.value || legalStatusFilter.value || dateKindFilter.value) open();
 }
 
