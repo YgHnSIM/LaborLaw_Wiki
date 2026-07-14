@@ -2,7 +2,9 @@ import path from "node:path";
 import {
   CATEGORY_META,
   CATEGORY_ORDER,
+  confidenceLabel,
   encodeRoute,
+  legalStatusLabel,
   siteHref,
   sourceTypeLabel,
   statusLabel
@@ -10,6 +12,7 @@ import {
 
 const collator = new Intl.Collator("ko-KR", { numeric: true, sensitivity: "base" });
 const LEGAL_AREA_ORDER = ["근로기준", "집단노동", "산재", "고용평등", "비정규직", "퇴직급여", "중대재해", "입법사"];
+const SEARCH_SOURCE_TYPES = ["official_law", "official_decision", "official_guidance", "official_record", "legal_excerpt", "academic_paper", "research_report", "practitioner_commentary", "news", "stakeholder_statement", "llm_report"];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -45,6 +48,10 @@ function displayDate(value) {
   const string = String(value ?? "");
   const match = string.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[1]}.${match[2]}.${match[3]}` : string;
+}
+
+function renderTime(value) {
+  return value ? `<time datetime="${escapeAttr(value)}">${escapeHtml(displayDate(value))}</time>` : "";
 }
 
 function pageLabel(page) {
@@ -123,6 +130,7 @@ function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
 function renderSearchDialog(basePath) {
   const categoryOptions = CATEGORY_ORDER.map((category) => `<option value="${category}">${escapeHtml(CATEGORY_META[category].shortLabel)}</option>`).join("");
   const areaOptions = LEGAL_AREA_ORDER.map((area) => `<option value="${escapeAttr(area)}">${escapeHtml(area)}</option>`).join("");
+  const sourceTypeOptions = SEARCH_SOURCE_TYPES.map((type) => `<option value="${type}">${escapeHtml(sourceTypeLabel(type))}</option>`).join("");
   return `
     <dialog class="search-dialog" id="search-dialog" data-search-url="${siteHref(basePath, "/search.json")}" aria-labelledby="search-dialog-title">
       <div class="search-head">
@@ -132,24 +140,31 @@ function renderSearchDialog(basePath) {
       <label class="search-field">
         <span class="sr-only">검색어</span>
         ${svgIcon("search")}
-        <input type="search" autocomplete="off" spellcheck="false" placeholder="개념, 사건번호, 출처 ID 검색" data-search-input>
+        <input id="search-input" type="search" role="combobox" aria-autocomplete="list" aria-controls="search-results" aria-expanded="false" aria-describedby="search-guidance search-status" autocomplete="off" spellcheck="false" placeholder="개념, 사건번호, 출처 ID 검색" data-search-input>
       </label>
       <div class="search-filters" aria-label="검색 필터">
         <label><span>분류</span><select data-search-category><option value="">전체</option>${categoryOptions}</select></label>
         <label><span>상태</span><select data-search-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>
         <label><span>영역</span><select data-search-area><option value="">전체</option>${areaOptions}</select></label>
+        <label><span>자료</span><select data-search-source-type><option value="">전체</option>${sourceTypeOptions}</select></label>
+        <label><span>법적 상태</span><select data-search-legal-status><option value="">전체</option><option value="current">현행</option><option value="amended">개정됨</option><option value="repealed">폐지됨</option><option value="overruled">판례 변경</option><option value="superseded">대체됨</option><option value="uncertain">확인 필요</option></select></label>
+        <label><span>날짜 정보</span><select data-search-date-kind><option value="">전체</option><option value="asOfDate">지식 기준일 있음</option><option value="effectiveDate">시행일 있음</option><option value="decisionDate">결정일 있음</option></select></label>
       </div>
-      <p class="search-guidance" data-search-guidance>제목·별칭·본문·사건번호·출처 ID를 검색합니다.</p>
-      <div class="search-results" data-search-results aria-live="polite"></div>
+      <p class="search-guidance" id="search-guidance">제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.</p>
+      <p class="sr-only" id="search-status" role="status" aria-live="polite" aria-atomic="true" data-search-status-text></p>
+      <div class="search-results" id="search-results" role="listbox" aria-label="검색 결과" data-search-results></div>
     </dialog>`;
 }
 
-function renderFooter({ basePath, latestUpdated }) {
+function renderFooter({ basePath, stats }) {
+  const knowledgeDate = stats.knowledgeAsOf || stats.latestContentUpdated;
   return `
     <footer class="site-footer">
       <p>이 위키는 법률 자문이 아니라 법령 버전과 근거 범위를 드러내는 백과사전적 지식베이스입니다.</p>
       <div>
-        <span>최근 갱신 ${escapeHtml(displayDate(latestUpdated))}</span>
+        ${knowledgeDate ? `<span>지식 기준일 ${renderTime(knowledgeDate)}</span>` : ""}
+        ${stats.latestContentUpdated ? `<span>콘텐츠 수정 ${renderTime(stats.latestContentUpdated)}</span>` : ""}
+        ${stats.latestUpdated && stats.latestUpdated !== stats.latestContentUpdated ? `<span>운영 기록 ${renderTime(stats.latestUpdated)}</span>` : ""}
         <a href="${siteHref(basePath, "/meta/출처-추적-및-최신성-관리/")}">출처 관리 원칙</a>
         <a href="${siteHref(basePath, "/log/")}">작업 기록</a>
       </div>
@@ -169,16 +184,39 @@ function renderStatusNotice(page) {
   return "";
 }
 
+function renderEvidenceStrip(page) {
+  const facts = [];
+  const add = (label, value, className = "") => {
+    if (!value) return;
+    facts.push(`<div${className ? ` class="${className}"` : ""}><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`);
+  };
+  add("문서 상태", pageStatusBadge(page), "fact-status");
+  add("지식 기준일", renderTime(page.data.as_of_date));
+  add("시행일", renderTime(page.data.effective_date));
+  if (!page.data.effective_date) add("결정일", renderTime(page.data.decision_date));
+  add("최종 수정", renderTime(page.data.updated));
+  add("법적 상태", escapeHtml(legalStatusLabel(page.data.legal_status)));
+  add("근거 확신", escapeHtml(confidenceLabel(page.data.confidence)));
+  if (page.sourceCount) {
+    const value = page.category === "sources"
+      ? `${page.sourceCount}개 원문`
+      : `${page.sourceCount}개${page.officialSourceCount ? ` · 공식 ${page.officialSourceCount}` : ""}`;
+    add(page.category === "sources" ? "원문 기록" : "연결 근거", escapeHtml(value));
+  }
+  add("다음 검토", renderTime(page.data.next_review_date), "fact-review-date");
+  return `<dl class="page-facts evidence-strip" aria-label="문서 신뢰 정보">${facts.join("")}</dl>`;
+}
+
 function renderEvidencePanel(page, basePath) {
   if (!page.sourcePages.length) return "";
   const items = page.sourcePages.map((source, index) => `
-    <li>
+    <li id="evidence-${escapeAttr(source.data.source_id)}" tabindex="-1">
       <span class="evidence-index">${String(index + 1).padStart(2, "0")}</span>
-      <a href="${siteHref(basePath, source.route)}">${escapeHtml(source.data.title)}</a>
-      <span>${escapeHtml(sourceTypeLabel(source.data.source_type))}</span>
+      <div><a href="${siteHref(basePath, source.route)}">${escapeHtml(source.data.title)}</a>${source.data.publisher ? `<small>${escapeHtml(source.data.publisher)}</small>` : ""}</div>
+      <span>${source.data.source_type.startsWith("official_") ? "공식" : "보조"} · ${escapeHtml(sourceTypeLabel(source.data.source_type))}</span>
     </li>`).join("");
   return `<details class="evidence-panel">
-    <summary><span>근거 자료</span><strong>${page.sourcePages.length}</strong></summary>
+    <summary><span>근거 자료</span><small>공식 ${page.officialSourceCount} · 보조 ${page.supportingSourceCount}</small><strong>${page.sourcePages.length}</strong></summary>
     <ol>${items}</ol>
   </details>`;
 }
@@ -260,14 +298,28 @@ function renderPrevNext(page, wiki, basePath) {
   </nav>`;
 }
 
+function renderHomeSearch(basePath) {
+  const suggestions = ["통상임금", "해고", "근로시간", "산업재해", "원하청 교섭"];
+  return `<section class="home-search" aria-labelledby="home-search-title">
+    <header><span aria-hidden="true">S</span><div><h2 id="home-search-title">노동법 문서 찾기</h2><p>개념, 사건번호, 법령과 출처 ID를 한 번에 검색합니다.</p></div></header>
+    <button class="home-search-launch" type="button" data-search-open>${svgIcon("search")}<span>확인하려는 개념이나 사건번호를 입력하세요</span><kbd>/</kbd></button>
+    <div class="home-search-suggestions"><span>바로 찾기</span>${suggestions.map((query) => `<button type="button" data-search-open data-search-preset-query="${escapeAttr(query)}">${escapeHtml(query)}</button>`).join("")}</div>
+  </section>`;
+}
+
 function renderHomeStats(wiki, basePath) {
-  const stats = [
-    ["전체 문서", wiki.stats.pages, "/catalog/"],
-    ["활성", wiki.stats.statuses.active ?? 0, "/catalog/"],
-    ["초안", wiki.stats.statuses.draft ?? 0, "/catalog/"],
-    ["검토", wiki.stats.statuses.review ?? 0, "/catalog/"]
+  const facts = [
+    ["지식 기준일", renderTime(wiki.stats.knowledgeAsOf || wiki.stats.latestContentUpdated), ""],
+    ["출처 기록", `<strong>${wiki.stats.sources}</strong>개`, "/sources/"],
+    ["검증 완료", `<strong>${wiki.stats.statuses.active ?? 0}</strong>개`, "/catalog/"],
+    ["검토 필요", `<strong>${wiki.stats.statuses.review ?? 0}</strong>개`, "review"]
   ];
-  return `<section class="home-stats" aria-label="위키 현황">${stats.map(([label, value, route], index) => `<a href="${siteHref(basePath, route)}"><span>${String(index + 1).padStart(2, "0")}</span><strong>${value}</strong><small>${escapeHtml(label)}</small></a>`).join("")}</section>`;
+  return `<section class="home-stats" aria-label="지식베이스 신뢰 현황">${facts.map(([label, value, target]) => {
+    const inner = `<span>${escapeHtml(label)}</span><div>${value}</div>`;
+    if (target === "review") return `<button type="button" data-search-open data-search-preset-status="review">${inner}</button>`;
+    if (target) return `<a href="${siteHref(basePath, target)}">${inner}</a>`;
+    return `<div>${inner}</div>`;
+  }).join("")}</section>`;
 }
 
 function renderAreaDashboard(wiki) {
@@ -296,17 +348,17 @@ function renderHomeCollections(wiki, basePath) {
     .sort((a, b) => b.sourceCount - a.sourceCount || b.data.updated.localeCompare(a.data.updated) || collator.compare(a.data.title, b.data.title))
     .slice(0, 4);
   const recent = wiki.pages
-    .filter((page) => !["index.md", "log.md", "overview.md"].includes(page.relativePath))
-    .sort((a, b) => b.data.updated.localeCompare(a.data.updated) || collator.compare(a.data.title, b.data.title))
+    .filter((page) => page.category !== "meta" && page.data.as_of_date)
+    .sort((a, b) => b.data.as_of_date.localeCompare(a.data.as_of_date) || b.officialSourceCount - a.officialSourceCount || collator.compare(a.data.title, b.data.title))
     .slice(0, 6);
   const review = wiki.pages
     .filter((page) => page.data.status === "review")
     .sort((a, b) => b.data.updated.localeCompare(a.data.updated) || collator.compare(a.data.title, b.data.title))
     .slice(0, 6);
-  const list = (pages, kind) => pages.map((page, index) => `<li><a href="${siteHref(basePath, page.route)}"><span>${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(page.data.title)}</strong><small>${kind === "analysis" ? `근거 ${page.sourceCount}` : `${escapeHtml(CATEGORY_META[page.category].shortLabel)} · ${escapeHtml(displayDate(page.data.updated))}`}</small></div></a></li>`).join("");
+  const list = (pages, kind) => pages.map((page, index) => `<li><a href="${siteHref(basePath, page.route)}"><span>${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(page.data.title)}</strong><small>${kind === "analysis" ? `근거 ${page.sourceCount} · 공식 ${page.officialSourceCount}` : kind === "recent" ? `${escapeHtml(CATEGORY_META[page.category].shortLabel)} · 기준 ${escapeHtml(displayDate(page.data.as_of_date))}` : `${escapeHtml(CATEGORY_META[page.category].shortLabel)} · 수정 ${escapeHtml(displayDate(page.data.updated))}`}</small></div></a></li>`).join("");
   return `<div class="home-collections">
     <section class="home-dashboard" aria-labelledby="home-analysis-title"><header><span>02</span><div><h2 id="home-analysis-title">근거 연결이 많은 분석</h2><p>여러 출처를 종합한 분석 문서입니다.</p></div></header><ol>${list(analyses, "analysis")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/analyses/")}">분석 전체 보기</a></section>
-    <section class="home-dashboard" aria-labelledby="home-recent-title"><header><span>03</span><div><h2 id="home-recent-title">최근 갱신</h2><p>갱신일을 기준으로 정렬했습니다.</p></div></header><ol>${list(recent, "recent")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/catalog/")}">전체 색인 보기</a></section>
+    <section class="home-dashboard" aria-labelledby="home-recent-title"><header><span>03</span><div><h2 id="home-recent-title">최근 검증 문서</h2><p>명시된 지식 기준일과 공식 근거 수를 기준으로 정렬했습니다.</p></div></header><ol>${list(recent, "recent")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/catalog/")}">전체 색인 보기</a></section>
     <section class="home-dashboard" aria-labelledby="home-review-title"><header><span>04</span><div><h2 id="home-review-title">검토가 필요한 문서</h2><p>모순 경고나 추가 확인 사항이 남아 있습니다.</p></div></header><ol>${list(review, "review")}</ol>${review.length < (wiki.stats.statuses.review ?? 0) ? `<button class="dashboard-more" type="button" data-search-open data-search-preset-status="review">검토 문서 전체 보기</button>` : ""}</section>
   </div>`;
 }
@@ -361,8 +413,8 @@ function renderShell({ wiki, page = null, currentCategory, title, description, c
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
     ${renderTopbar({ basePath, repositoryUrl })}
     ${renderSidebar({ wiki, currentPage: page, currentCategory, basePath })}
-    <div class="page-frame">${main}${renderFooter({ basePath, latestUpdated: wiki.stats.latestUpdated })}</div>
-    <aside class="reading-rail" aria-live="polite" aria-atomic="true"><span data-rail-index>00</span><span data-rail-title>${escapeHtml(initialRail)}</span></aside>
+    <div class="page-frame">${main}${renderFooter({ basePath, stats: wiki.stats })}</div>
+    ${page && page.route !== "/" ? `<aside class="reading-rail" aria-live="polite" aria-atomic="true"><span data-rail-index>00</span><span data-rail-title>${escapeHtml(initialRail)}</span></aside>` : ""}
     ${renderSearchDialog(basePath)}
     <script type="module" src="${siteHref(basePath, "/assets/app.js")}"></script>
   </body>
@@ -374,25 +426,23 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
   const isHome = page.route === "/";
   const folio = isHome ? "00" : category.number;
   const canonical = absoluteUrl(siteUrl, page.route);
-  const articleHtml = rendered.html;
-  const aliases = page.data.aliases.length ? `<p class="aliases"><span>다른 이름</span>${page.data.aliases.map((alias) => `<span>${escapeHtml(alias)}</span>`).join("")}</p>` : "";
-  const metaFacts = [
-    pageStatusBadge(page),
-    page.data.updated ? `<span>갱신 ${escapeHtml(displayDate(page.data.updated))}</span>` : "",
-    page.sourceCount ? `<span>근거 ${page.sourceCount}</span>` : "",
-    page.data.legal_area ? `<span>${escapeHtml(page.data.legal_area)}</span>` : ""
-  ].filter(Boolean).join("");
+  const articleHtml = rendered.contentHtml;
+  const aliases = page.data.aliases.length ? `<dl class="aliases"><dt>다른 이름</dt><dd>${page.data.aliases.map((alias) => `<span>${escapeHtml(alias)}</span>`).join("")}</dd></dl>` : "";
+  const breadcrumbs = isHome ? "" : `<nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span aria-hidden="true">/</span><a href="${siteHref(basePath, `/${page.category}/`)}">${escapeHtml(category.shortLabel)}</a></nav>`;
+  const toc = isHome ? [] : rendered.toc;
   const main = `<main id="main-content" class="main-content">
-    <nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span>/</span><a href="${siteHref(basePath, `/${page.category}/`)}">${escapeHtml(category.shortLabel)}</a></nav>
-    <header class="page-hero">
+    ${breadcrumbs}
+    <header class="page-hero${isHome ? " is-home" : ""}">
       <div class="page-folio" aria-hidden="true">${folio}</div>
       <div class="page-hero-content">
         <p class="page-kicker">${escapeHtml(category.label)}</p>
         <h1>${escapeHtml(page.data.title)}</h1>
+        ${page.excerpt ? `<p class="page-summary">${escapeHtml(page.excerpt)}</p>` : ""}
         ${aliases}
-        <div class="page-facts">${metaFacts}</div>
+        ${renderEvidenceStrip(page)}
       </div>
     </header>
+    ${isHome ? renderHomeSearch(basePath) : ""}
     ${isHome ? renderHomeStats(wiki, basePath) : ""}
     ${isHome ? renderAreaDashboard(wiki) : ""}
     ${isHome ? renderHomeCollections(wiki, basePath) : ""}
@@ -400,17 +450,17 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
     ${renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef })}
     ${renderEvidencePanel(page, basePath)}
     ${renderCitedBy(page, basePath)}
-    ${renderMobileToc(rendered.toc, basePath, page.route)}
+    ${renderMobileToc(toc, basePath, page.route)}
     <div class="article-layout">
-      <article class="prose${isHome ? " home-description" : ""}">${articleHtml}</article>
-      ${renderToc(rendered.toc, basePath, page.route)}
+      <article class="prose${isHome ? " home-description" : ""}"${!isHome && toc.length ? " data-reading-article" : ""}>${articleHtml}</article>
+      ${renderToc(toc, basePath, page.route)}
     </div>
     ${renderPrevNext(page, wiki, basePath)}
   </main>`;
   return renderShell({
     wiki,
     page,
-    currentCategory: page.category,
+    currentCategory: page.category === "meta" && ["/", "/catalog/", "/log/"].includes(page.route) ? null : page.category,
     title: page.data.title,
     description: page.excerpt || `${page.data.title} 문서`,
     canonical,
@@ -418,7 +468,7 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
     basePath,
     repositoryUrl,
     siteUrl,
-    initialRail: isHome ? page.data.title : rendered.toc[0]?.title || page.data.title
+    initialRail: toc[0]?.title || page.data.title
   });
 }
 
@@ -434,7 +484,7 @@ export function renderCategoryPage({ category, wiki, basePath, siteUrl, reposito
     <a href="${siteHref(basePath, page.route)}">
       <span class="card-index">${String(index + 1).padStart(2, "0")}</span>
       <div><h2>${escapeHtml(page.data.title)}</h2><p>${escapeHtml(page.excerpt)}</p></div>
-      <footer>${pageStatusBadge(page)}<span>근거 ${page.sourceCount}</span><span>${escapeHtml(displayDate(page.data.updated))}</span></footer>
+      <footer>${pageStatusBadge(page)}<span>${page.category === "sources" ? "원문" : "근거"} ${page.sourceCount}</span><span>${page.data.as_of_date ? `기준 ${escapeHtml(displayDate(page.data.as_of_date))}` : `수정 ${escapeHtml(displayDate(page.data.updated))}`}</span></footer>
     </a>
   </li>`).join("");
   const areaOptions = areas.map((area) => `<option value="${escapeAttr(area)}">${escapeHtml(area)}</option>`).join("");
@@ -443,7 +493,7 @@ export function renderCategoryPage({ category, wiki, basePath, siteUrl, reposito
     <nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span>/</span><span>${escapeHtml(meta.shortLabel)}</span></nav>
     <header class="category-hero"><span class="category-number" aria-hidden="true">${meta.number}</span><div><p>${pages.length}개 문서</p><h1>${escapeHtml(meta.shortLabel)}</h1><p>${escapeHtml(meta.description)}</p><p class="category-maturity">활성 ${statusCounts.active ?? 0} · 초안 ${statusCounts.draft ?? 0} · 검토 ${statusCounts.review ?? 0}</p></div></header>
     <div class="category-controls" data-category-filters>
-      <p><strong data-category-count>${pages.length}</strong>개 문서 표시</p>
+      <p role="status" aria-live="polite" aria-atomic="true"><strong data-category-count>${pages.length}</strong>개 문서 표시</p>
       <label><span>상태</span><select data-category-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>
       ${areas.length ? `<label><span>영역</span><select data-category-area><option value="">전체</option>${areaOptions}</select></label>` : ""}
     </div>

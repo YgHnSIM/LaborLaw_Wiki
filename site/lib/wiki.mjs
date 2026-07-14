@@ -24,6 +24,7 @@ const SOURCE_TYPE_LABELS = {
   official_decision: "공식 결정",
   official_guidance: "공식 지침",
   official_record: "공식 기록",
+  legal_excerpt: "법률 발췌",
   academic_paper: "학술논문",
   research_report: "연구보고서",
   news: "기사",
@@ -32,12 +33,35 @@ const SOURCE_TYPE_LABELS = {
   stakeholder_statement: "이해관계자 성명"
 };
 
+const LEGAL_STATUS_LABELS = {
+  current: "현행",
+  amended: "개정됨",
+  repealed: "폐지됨",
+  overruled: "판례 변경",
+  superseded: "대체됨",
+  uncertain: "확인 필요"
+};
+
+const CONFIDENCE_LABELS = {
+  high: "높음",
+  medium: "보통",
+  low: "낮음"
+};
+
 export function statusLabel(status) {
   return STATUS_LABELS[status] ?? String(status ?? "");
 }
 
 export function sourceTypeLabel(sourceType) {
   return SOURCE_TYPE_LABELS[sourceType] ?? String(sourceType ?? "");
+}
+
+export function legalStatusLabel(status) {
+  return LEGAL_STATUS_LABELS[status] ?? String(status ?? "");
+}
+
+export function confidenceLabel(confidence) {
+  return CONFIDENCE_LABELS[confidence] ?? String(confidence ?? "");
 }
 
 export function normalizeLookup(value) {
@@ -160,6 +184,7 @@ function removeLeadingH1(body, expectedTitle, filePath) {
 
 function plainText(markdown) {
   return String(markdown)
+    .replace(/\[@SRC-[A-Z0-9][A-Z0-9._-]{2,}\]/g, " ")
     .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_, target, label) => label || target)
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
@@ -239,6 +264,8 @@ export async function loadWiki(rootDir) {
       sourceCount: sourceCount(data, category),
       wikiLinks: extractWikiLinks(bodyWithoutH1),
       sourcePages: [],
+      officialSourceCount: 0,
+      supportingSourceCount: 0,
       citedBy: [],
       relatedSources: [],
       supersedingSource: null
@@ -273,6 +300,8 @@ export async function loadWiki(rootDir) {
       source.citedBy.push(page);
       return source;
     });
+    page.officialSourceCount = page.sourcePages.filter((source) => source.data.source_type.startsWith("official_")).length;
+    page.supportingSourceCount = page.sourcePages.length - page.officialSourceCount;
     page.relatedSources = page.data.related_source_refs.map((id) => {
       const source = sourcesById.get(id);
       if (!source) throw new Error(`${page.relativePath}: 존재하지 않는 related_source_refs ${id}`);
@@ -302,6 +331,9 @@ export async function loadWiki(rootDir) {
     return counts;
   }, {});
   const latestUpdated = pages.map((page) => page.data.updated).filter(Boolean).sort().at(-1) ?? "";
+  const contentPages = pages.filter((page) => page.category !== "meta");
+  const latestContentUpdated = contentPages.map((page) => page.data.updated).filter(Boolean).sort().at(-1) ?? "";
+  const knowledgeAsOf = contentPages.map((page) => page.data.as_of_date).filter(Boolean).sort().at(-1) ?? "";
 
   return {
     pages,
@@ -316,7 +348,9 @@ export async function loadWiki(rootDir) {
       entities: groups.entities.length,
       meta: groups.meta.length,
       statuses: statusCounts,
-      latestUpdated
+      latestUpdated,
+      latestContentUpdated,
+      knowledgeAsOf
     }
   };
 }

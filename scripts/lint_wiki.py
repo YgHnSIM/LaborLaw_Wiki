@@ -83,6 +83,7 @@ KEY_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_]*):(?:[ \t]*(.*))?$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TAG_RE = re.compile(r"^(type|domain|area|status)/[a-z0-9][a-z0-9-]*$")
 SOURCE_ID_RE = re.compile(r"^SRC-[A-Z0-9][A-Z0-9._-]{2,}$")
+SOURCE_CITATION_RE = re.compile(r"\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]")
 SOURCE_TYPE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 WARNING_RE = re.compile(r"^>\s*\[!WARNING\]", re.MULTILINE)
@@ -613,6 +614,14 @@ class Linter:
         for ref in refs:
             if ref not in self.source_by_id:
                 self.error("SOURCE_REF_MISSING", page.path, f"존재하지 않는 source_id입니다: `{ref}`", page.line_for("source_refs"))
+        visible = remove_fenced_code(page.body)
+        for match in SOURCE_CITATION_RE.finditer(visible):
+            ref = match.group(1)
+            line = page.body_start_line + visible.count("\n", 0, match.start())
+            if ref not in self.source_by_id:
+                self.error("SOURCE_CITATION_MISSING", page.path, f"본문 근거 표식이 존재하지 않는 source_id를 가리킵니다: `{ref}`", line)
+            elif ref not in refs:
+                self.error("SOURCE_CITATION_UNDECLARED", page.path, f"본문 근거 표식 `{ref}`를 frontmatter source_refs에도 등록하세요.", line)
         forbidden = SOURCE_FIELDS & fm.keys()
         if forbidden:
             self.error("SOURCE_FIELDS_ON_PAGE", page.path, f"비출처 페이지에 출처 계보 필드가 있습니다: {', '.join(sorted(forbidden))}")

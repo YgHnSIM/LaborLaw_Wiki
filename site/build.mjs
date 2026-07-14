@@ -78,6 +78,13 @@ function buildSearchIndex(wiki, basePath) {
     statusLabel: statusLabel(page.data.status),
     legalArea: page.data.legal_area || "",
     sourceType: page.data.source_type || "",
+    legalStatus: page.data.legal_status || "",
+    confidence: page.data.confidence || "",
+    asOfDate: page.data.as_of_date || "",
+    effectiveDate: page.data.effective_date || "",
+    decisionDate: page.data.decision_date || "",
+    sourceCount: page.sourceCount,
+    officialSourceCount: page.officialSourceCount,
     updated: page.data.updated,
     url: siteHref(basePath, page.route),
     excerpt: page.excerpt,
@@ -106,7 +113,7 @@ function absoluteRoute(siteUrl, route) {
 }
 
 function renderSitemap(wiki, siteUrl) {
-  const categoryRoutes = CATEGORY_ORDER.map((category) => ({ route: `/${category}/`, updated: wiki.stats.latestUpdated }));
+  const categoryRoutes = CATEGORY_ORDER.map((category) => ({ route: `/${category}/`, updated: wiki.stats.latestContentUpdated }));
   const routes = [
     ...categoryRoutes,
     ...wiki.pages.map((page) => ({ route: page.route, updated: page.data.updated }))

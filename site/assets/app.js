@@ -59,9 +59,10 @@ function occurrences(haystack, needle) {
 
 function scoreDocument(document, query) {
   const tokens = query.split(/\s+/).filter(Boolean);
+  const normalizedAliases = document.aliases.map(normalize);
   const fields = {
     title: normalize(document.title),
-    aliases: normalize(document.aliases.join(" ")),
+    aliases: normalizedAliases.join(" "),
     id: normalize(document.sourceId),
     publisher: normalize(document.publisher),
     metadata: normalize(document.metadata),
@@ -72,19 +73,27 @@ function scoreDocument(document, query) {
   if (!tokens.every((token) => combined.includes(token))) return -1;
 
   let score = 0;
+  if (fields.title === query) score += 1_400;
+  else if (fields.title.startsWith(query)) score += 520;
+  else if (fields.title.includes(query)) score += 300;
+  if (normalizedAliases.includes(query)) score += 900;
+  else if (fields.aliases.includes(query)) score += 220;
   for (const token of tokens) {
-    if (fields.title === token) score += 320;
-    else if (fields.title.startsWith(token)) score += 210;
+    if (fields.title === token) score += 360;
+    else if (fields.title.startsWith(token)) score += 220;
     else if (fields.title.includes(token)) score += 150;
-    if (fields.aliases.includes(token)) score += 110;
-    if (fields.id.includes(token)) score += 130;
-    if (fields.publisher.includes(token)) score += 80;
-    if (fields.metadata.includes(token)) score += 65;
-    if (fields.excerpt.includes(token)) score += 38;
-    score += Math.min(occurrences(fields.body, token) * 7, 42);
+    if (normalizedAliases.includes(token)) score += 180;
+    else if (fields.aliases.includes(token)) score += 90;
+    if (fields.id === token) score += 700;
+    else if (fields.id.includes(token)) score += 160;
+    if (fields.publisher.includes(token)) score += 70;
+    if (fields.metadata.includes(token)) score += 50;
+    if (fields.excerpt.includes(token)) score += 30;
+    score += Math.min(occurrences(fields.body, token) * 5, 30);
   }
-  if (fields.title.includes(query)) score += 80;
-  if (fields.aliases.includes(query)) score += 55;
+  if (document.category === "meta") score -= 180;
+  if (document.legalStatus === "current") score += 12;
+  score += Math.min(Number(document.officialSourceCount || 0), 8);
   return score;
 }
 
@@ -124,6 +133,10 @@ function createResult(entry, index, tokens) {
   const link = document.createElement("a");
   link.className = "search-result";
   link.href = entry.url;
+  link.id = `search-result-${index}`;
+  link.setAttribute("role", "option");
+  link.setAttribute("aria-selected", "false");
+  link.tabIndex = -1;
 
   const number = document.createElement("span");
   number.className = "search-result-index";
@@ -148,6 +161,12 @@ function createResult(entry, index, tokens) {
     area.textContent = entry.legalArea;
     meta.append(area);
   }
+  const referenceDate = entry.asOfDate || entry.effectiveDate || entry.decisionDate;
+  if (referenceDate) {
+    const date = window.document.createElement("span");
+    date.textContent = `${entry.asOfDate ? "기준" : entry.effectiveDate ? "시행" : "결정"} ${referenceDate.replaceAll("-", ".")}`;
+    meta.append(date);
+  }
 
   link.append(number, content, meta);
   return link;
@@ -157,19 +176,62 @@ function setupSearch() {
   const dialog = document.querySelector("#search-dialog");
   const input = dialog?.querySelector("[data-search-input]");
   const results = dialog?.querySelector("[data-search-results]");
-  const guidance = dialog?.querySelector("[data-search-guidance]");
+  const guidance = dialog?.querySelector("#search-guidance");
+  const statusText = dialog?.querySelector("[data-search-status-text]");
   const categoryFilter = dialog?.querySelector("[data-search-category]");
   const statusFilter = dialog?.querySelector("[data-search-status]");
   const areaFilter = dialog?.querySelector("[data-search-area]");
+  const sourceTypeFilter = dialog?.querySelector("[data-search-source-type]");
+  const legalStatusFilter = dialog?.querySelector("[data-search-legal-status]");
+  const dateKindFilter = dialog?.querySelector("[data-search-date-kind]");
   const openButtons = document.querySelectorAll("[data-search-open]");
   const closeButton = dialog?.querySelector("[data-search-close]");
-  if (!dialog || !input || !results || !guidance || !categoryFilter || !statusFilter || !areaFilter) return;
+  if (!dialog || !input || !results || !guidance || !statusText || !categoryFilter || !statusFilter || !areaFilter || !sourceTypeFilter || !legalStatusFilter || !dateKindFilter) return;
 
   let documents = null;
   let loading = null;
   let selectedIndex = -1;
   let debounceTimer = null;
   let visibleLimit = 12;
+  let renderRequest = 0;
+  let worker = null;
+  let workerReady = null;
+  let workerRequest = 0;
+  let workerSupported = "Worker" in window;
+  const workerPending = new Map();
+
+  const initializeWorker = () => {
+    if (!workerSupported || worker) return;
+    worker = new Worker(new URL("./search-worker.js", import.meta.url), { type: "module" });
+    let resolveReady;
+    let rejectReady;
+    workerReady = new Promise((resolve, reject) => {
+      resolveReady = resolve;
+      rejectReady = reject;
+    });
+    worker.addEventListener("message", (event) => {
+      const message = event.data ?? {};
+      if (message.type === "ready") {
+        resolveReady();
+      } else if (message.type === "results") {
+        workerPending.get(message.id)?.resolve(message);
+        workerPending.delete(message.id);
+      } else if (message.type === "error") {
+        const error = new Error(message.message || "검색 작업자 오류");
+        if (message.id) {
+          workerPending.get(message.id)?.reject(error);
+          workerPending.delete(message.id);
+        } else {
+          rejectReady(error);
+        }
+      }
+    });
+    worker.addEventListener("error", (event) => {
+      workerSupported = false;
+      rejectReady(event.error || new Error("검색 작업자를 시작하지 못했습니다."));
+    }, { once: true });
+    worker.postMessage({ type: "init", url: dialog.dataset.searchUrl });
+  };
 
   const loadIndex = async () => {
     if (documents) return documents;
@@ -187,11 +249,65 @@ function setupSearch() {
     return loading;
   };
 
+  const filters = () => ({
+    category: categoryFilter.value,
+    status: statusFilter.value,
+    area: areaFilter.value,
+    sourceType: sourceTypeFilter.value,
+    legalStatus: legalStatusFilter.value,
+    dateKind: dateKindFilter.value
+  });
+
+  const filterEntry = (entry, active) => (!active.category || entry.category === active.category)
+    && (!active.status || entry.status === active.status)
+    && (!active.area || entry.legalArea === active.area)
+    && (!active.sourceType || entry.sourceType === active.sourceType)
+    && (!active.legalStatus || entry.legalStatus === active.legalStatus)
+    && (!active.dateKind || Boolean(entry[active.dateKind]));
+
+  const searchIndex = async (query, activeFilters, limit) => {
+    initializeWorker();
+    if (worker && workerReady) {
+      try {
+        await workerReady;
+        const id = ++workerRequest;
+        return await new Promise((resolve, reject) => {
+          workerPending.set(id, { resolve, reject });
+          worker.postMessage({ type: "search", id, query, filters: activeFilters, limit });
+        });
+      } catch (error) {
+        console.warn("검색 작업자를 사용할 수 없어 기본 검색으로 전환합니다.", error);
+        worker.terminate();
+        workerSupported = false;
+        worker = null;
+        workerReady = null;
+      }
+    }
+    const index = await loadIndex();
+    const matches = index
+      .filter((entry) => filterEntry(entry, activeFilters))
+      .map((entry) => ({ entry, score: query ? scoreDocument(entry, query) : 0 }))
+      .filter((match) => match.score >= 0)
+      .sort((a, b) => b.score - a.score
+        || String(b.entry.asOfDate || b.entry.updated).localeCompare(String(a.entry.asOfDate || a.entry.updated))
+        || a.entry.title.localeCompare(b.entry.title, "ko"));
+    return { total: matches.length, entries: matches.slice(0, limit).map((match) => match.entry) };
+  };
+
   const updateSelection = (nextIndex) => {
     const links = [...results.querySelectorAll(".search-result")];
-    if (!links.length) return;
-    selectedIndex = Math.max(0, Math.min(nextIndex, links.length - 1));
-    links.forEach((link, index) => link.classList.toggle("is-selected", index === selectedIndex));
+    if (!links.length) {
+      selectedIndex = -1;
+      input.removeAttribute("aria-activedescendant");
+      return;
+    }
+    selectedIndex = (nextIndex + links.length) % links.length;
+    links.forEach((link, index) => {
+      const selected = index === selectedIndex;
+      link.classList.toggle("is-selected", selected);
+      link.setAttribute("aria-selected", String(selected));
+    });
+    input.setAttribute("aria-activedescendant", links[selectedIndex].id);
     links[selectedIndex].scrollIntoView({ block: "nearest" });
   };
 
@@ -199,10 +315,16 @@ function setupSearch() {
     const url = new URL(window.location.href);
     const values = {
       q: input.value.trim(),
-      category: categoryFilter.value,
-      status: statusFilter.value,
-      area: areaFilter.value
+      "search-category": categoryFilter.value,
+      "search-status": statusFilter.value,
+      "search-area": areaFilter.value,
+      "search-source": sourceTypeFilter.value,
+      "search-legal": legalStatusFilter.value,
+      "search-date": dateKindFilter.value
     };
+    const hasSearch = Object.values(values).some(Boolean);
+    if (hasSearch) url.searchParams.set("search", "1");
+    else url.searchParams.delete("search");
     for (const [key, value] of Object.entries(values)) {
       if (value) url.searchParams.set(key, value);
       else url.searchParams.delete(key);
@@ -213,40 +335,43 @@ function setupSearch() {
   const render = async () => {
     const query = normalize(input.value);
     const tokens = query.split(/\s+/).filter(Boolean);
+    const currentRequest = ++renderRequest;
     selectedIndex = -1;
+    input.removeAttribute("aria-activedescendant");
+    input.setAttribute("aria-expanded", "false");
     results.replaceChildren();
-    const hasFilters = categoryFilter.value || statusFilter.value || areaFilter.value;
+    const activeFilters = filters();
+    const hasFilters = Object.values(activeFilters).some(Boolean);
     if (!query && !hasFilters) {
-      guidance.textContent = "제목·별칭·본문·사건번호·출처 ID를 검색합니다.";
+      guidance.textContent = "제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.";
+      statusText.textContent = "";
       syncUrl();
       return;
     }
 
     guidance.textContent = "검색 중…";
+    statusText.textContent = "검색 중입니다.";
     try {
-      const index = await loadIndex();
-      const matches = index
-        .filter((entry) => !categoryFilter.value || entry.category === categoryFilter.value)
-        .filter((entry) => !statusFilter.value || entry.status === statusFilter.value)
-        .filter((entry) => !areaFilter.value || entry.legalArea === areaFilter.value)
-        .map((entry) => ({ entry, score: query ? scoreDocument(entry, query) : 0 }))
-        .filter((match) => match.score >= 0)
-        .sort((a, b) => b.score - a.score || b.entry.updated.localeCompare(a.entry.updated) || a.entry.title.localeCompare(b.entry.title, "ko"));
-      guidance.textContent = `검색 결과 ${matches.length}개 · ${Math.min(visibleLimit, matches.length)}개 표시`;
-      if (!matches.length) {
+      const matches = await searchIndex(query, activeFilters, visibleLimit);
+      if (currentRequest !== renderRequest) return;
+      const shown = Math.min(visibleLimit, matches.total);
+      guidance.textContent = `검색 결과 ${matches.total}개 · ${shown}개 표시`;
+      statusText.textContent = `검색 결과 ${matches.total}개 중 ${shown}개를 표시합니다.`;
+      if (!matches.total) {
         const empty = document.createElement("p");
         empty.className = "search-empty";
         empty.textContent = "일치하는 문서가 없습니다. 더 짧은 검색어나 사건번호 일부를 입력해 보세요.";
         results.append(empty);
+        syncUrl();
         return;
       }
       const fragment = document.createDocumentFragment();
-      matches.slice(0, visibleLimit).forEach(({ entry }, indexNumber) => fragment.append(createResult(entry, indexNumber, tokens)));
-      if (matches.length > visibleLimit) {
+      matches.entries.forEach((entry, indexNumber) => fragment.append(createResult(entry, indexNumber, tokens)));
+      if (matches.total > visibleLimit) {
         const more = document.createElement("button");
         more.type = "button";
         more.className = "search-more";
-        more.textContent = `${Math.min(12, matches.length - visibleLimit)}개 더 보기`;
+        more.textContent = `${Math.min(12, matches.total - visibleLimit)}개 더 보기`;
         more.addEventListener("click", () => {
           visibleLimit += 12;
           render();
@@ -254,9 +379,11 @@ function setupSearch() {
         fragment.append(more);
       }
       results.append(fragment);
+      input.setAttribute("aria-expanded", "true");
       syncUrl();
     } catch (error) {
       guidance.textContent = "검색 색인을 불러오지 못했습니다.";
+      statusText.textContent = "검색 색인을 불러오지 못했습니다.";
       const empty = document.createElement("p");
       empty.className = "search-empty";
       empty.textContent = "페이지를 새로고침한 뒤 다시 시도해 주세요.";
@@ -266,20 +393,34 @@ function setupSearch() {
   };
 
   const open = (preset = {}) => {
+    const hasPreset = Object.values(preset).some((value) => value !== undefined);
+    if (hasPreset) {
+      input.value = "";
+      categoryFilter.value = "";
+      statusFilter.value = "";
+      areaFilter.value = "";
+      sourceTypeFilter.value = "";
+      legalStatusFilter.value = "";
+      dateKindFilter.value = "";
+    }
+    if (preset.query !== undefined) input.value = preset.query;
     if (preset.area !== undefined) areaFilter.value = preset.area;
     if (preset.status !== undefined) statusFilter.value = preset.status;
     if (preset.category !== undefined) categoryFilter.value = preset.category;
     visibleLimit = 12;
     if (!dialog.open) dialog.showModal();
     window.setTimeout(() => input.focus(), 0);
-    loadIndex().then(() => render()).catch(() => {});
+    render();
   };
 
   const close = () => {
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
     if (dialog.open) dialog.close();
   };
 
   openButtons.forEach((button) => button.addEventListener("click", () => open({
+    query: button.dataset.searchPresetQuery,
     area: button.dataset.searchPresetArea,
     status: button.dataset.searchPresetStatus,
     category: button.dataset.searchPresetCategory
@@ -293,7 +434,7 @@ function setupSearch() {
     visibleLimit = 12;
     debounceTimer = window.setTimeout(render, 90);
   });
-  [categoryFilter, statusFilter, areaFilter].forEach((filter) => filter.addEventListener("change", () => {
+  [categoryFilter, statusFilter, areaFilter, sourceTypeFilter, legalStatusFilter, dateKindFilter].forEach((filter) => filter.addEventListener("change", () => {
     visibleLimit = 12;
     render();
   }));
@@ -309,6 +450,10 @@ function setupSearch() {
       results.querySelectorAll(".search-result")[selectedIndex]?.click();
     }
   });
+  dialog.addEventListener("close", () => {
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+  });
   window.addEventListener("keydown", (event) => {
     const target = event.target;
     const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
@@ -323,10 +468,13 @@ function setupSearch() {
 
   const url = new URL(window.location.href);
   input.value = url.searchParams.get("q") || "";
-  categoryFilter.value = url.searchParams.get("category") || "";
-  statusFilter.value = url.searchParams.get("status") || "";
-  areaFilter.value = url.searchParams.get("area") || "";
-  if (input.value || categoryFilter.value || statusFilter.value || areaFilter.value) open();
+  categoryFilter.value = url.searchParams.get("search-category") || "";
+  statusFilter.value = url.searchParams.get("search-status") || "";
+  areaFilter.value = url.searchParams.get("search-area") || "";
+  sourceTypeFilter.value = url.searchParams.get("search-source") || "";
+  legalStatusFilter.value = url.searchParams.get("search-legal") || "";
+  dateKindFilter.value = url.searchParams.get("search-date") || "";
+  if (url.searchParams.get("search") === "1" || input.value || categoryFilter.value || statusFilter.value || areaFilter.value || sourceTypeFilter.value || legalStatusFilter.value || dateKindFilter.value) open();
 }
 
 function setupCategoryFilters() {
@@ -336,7 +484,15 @@ function setupCategoryFilters() {
   const status = controls.querySelector("[data-category-status]");
   const area = controls.querySelector("[data-category-area]");
   const count = controls.querySelector("[data-category-count]");
-  const apply = () => {
+  const syncUrl = () => {
+    const url = new URL(window.location.href);
+    if (status?.value) url.searchParams.set("status", status.value);
+    else url.searchParams.delete("status");
+    if (area?.value) url.searchParams.set("area", area.value);
+    else url.searchParams.delete("area");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+  const apply = (updateUrl = true) => {
     let visible = 0;
     for (const card of cards) {
       const show = (!status?.value || card.dataset.status === status.value) && (!area?.value || card.dataset.area === area.value);
@@ -344,20 +500,28 @@ function setupCategoryFilters() {
       if (show) visible += 1;
     }
     if (count) count.textContent = String(visible);
+    if (updateUrl) syncUrl();
   };
   status?.addEventListener("change", apply);
   area?.addEventListener("change", apply);
+  const url = new URL(window.location.href);
+  const initialStatus = url.searchParams.get("status") || "";
+  const initialArea = url.searchParams.get("area") || "";
+  if (status && [...status.options].some((option) => option.value === initialStatus)) status.value = initialStatus;
+  if (area && [...area.options].some((option) => option.value === initialArea)) area.value = initialArea;
+  apply(false);
 }
 
 function setupReadingCoordinates() {
-  const headings = [...document.querySelectorAll(".prose h2, .prose h3")];
+  const article = document.querySelector("[data-reading-article]");
+  if (!article) return;
+  const headings = [...article.querySelectorAll("h2, h3")];
   const tocLinks = [...document.querySelectorAll("[data-toc-link]")];
   const railIndex = document.querySelector("[data-rail-index]");
   const railTitle = document.querySelector("[data-rail-title]");
   const mobileTitle = document.querySelector("[data-mobile-toc-current]");
   const mobileToc = document.querySelector("[data-mobile-toc]");
   const progress = document.querySelector("[data-reading-progress]");
-  const article = document.querySelector(".prose");
   if (!headings.length) return;
 
   let h2Index = 0;
@@ -403,10 +567,11 @@ function setupReadingCoordinates() {
 
   if (progress && article) {
     let scheduled = false;
+    let articleTop = 0;
+    let articleHeight = 1;
     const updateProgress = () => {
-      const top = article.offsetTop;
-      const distance = Math.max(article.offsetHeight - window.innerHeight * 0.65, 1);
-      const value = Math.max(0, Math.min(100, ((window.scrollY - top) / distance) * 100));
+      const distance = Math.max(articleHeight - window.innerHeight * 0.65, 1);
+      const value = Math.max(0, Math.min(100, ((window.scrollY - articleTop) / distance) * 100));
       progress.value = value;
       progress.setAttribute("aria-valuetext", `${Math.round(value)}% 읽음`);
       scheduled = false;
@@ -416,13 +581,70 @@ function setupReadingCoordinates() {
       scheduled = true;
       window.requestAnimationFrame(updateProgress);
     };
+    const measureArticle = () => {
+      const rect = article.getBoundingClientRect();
+      articleTop = rect.top + window.scrollY;
+      articleHeight = rect.height;
+      scheduleProgress();
+    };
     window.addEventListener("scroll", scheduleProgress, { passive: true });
-    window.addEventListener("resize", scheduleProgress);
-    updateProgress();
+    window.addEventListener("resize", measureArticle);
+    if ("ResizeObserver" in window) new ResizeObserver(measureArticle).observe(article);
+    measureArticle();
   }
+}
+
+function setupOverflowTables() {
+  const wrappers = [...document.querySelectorAll("[data-table-scroll]")];
+  if (!wrappers.length) return;
+  const update = (wrapper) => {
+    const overflow = wrapper.scrollWidth > wrapper.clientWidth + 1;
+    wrapper.classList.toggle("is-overflowing", overflow);
+    wrapper.classList.toggle("is-at-end", !overflow || wrapper.scrollLeft + wrapper.clientWidth >= wrapper.scrollWidth - 2);
+    wrapper.tabIndex = overflow ? 0 : -1;
+    if (overflow) {
+      wrapper.setAttribute("role", "region");
+      wrapper.setAttribute("aria-label", "표, 가로로 스크롤할 수 있습니다");
+    } else {
+      wrapper.removeAttribute("role");
+      wrapper.removeAttribute("aria-label");
+    }
+  };
+  wrappers.forEach((wrapper) => {
+    wrapper.addEventListener("scroll", () => update(wrapper), { passive: true });
+    update(wrapper);
+  });
+  if ("ResizeObserver" in window) {
+    const observer = new ResizeObserver((entries) => entries.forEach((entry) => update(entry.target)));
+    wrappers.forEach((wrapper) => observer.observe(wrapper));
+  }
+}
+
+function setupEvidenceCitations() {
+  const revealTarget = (hash = window.location.hash) => {
+    if (!hash.startsWith("#evidence-")) return;
+    let id = hash.slice(1);
+    try {
+      id = decodeURIComponent(id);
+    } catch {
+      // Keep the fragment as supplied when it is not valid percent encoding.
+    }
+    const target = document.getElementById(id);
+    const panel = target?.closest("details.evidence-panel");
+    if (panel) panel.open = true;
+  };
+
+  document.querySelectorAll(".evidence-citation").forEach((citation) => {
+    citation.addEventListener("click", () => revealTarget(citation.hash));
+  });
+  window.addEventListener("hashchange", () => revealTarget());
+  revealTarget();
 }
 
 setupMobileMenu();
 setupSearch();
 setupCategoryFilters();
-setupReadingCoordinates();
+setupOverflowTables();
+setupEvidenceCitations();
+if ("requestIdleCallback" in window) window.requestIdleCallback(setupReadingCoordinates, { timeout: 700 });
+else window.setTimeout(setupReadingCoordinates, 0);

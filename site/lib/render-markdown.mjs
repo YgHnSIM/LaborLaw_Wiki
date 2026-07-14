@@ -3,6 +3,8 @@ import markdownItAnchor from "markdown-it-anchor";
 import { slug as githubSlug } from "github-slugger";
 import { normalizeLookup, siteHref } from "./wiki.mjs";
 
+const SOURCE_CITATION_RE = /\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]/g;
+
 export function headingSlug(value) {
   return githubSlug(String(value).normalize("NFC"));
 }
@@ -69,6 +71,39 @@ function calloutPlugin(md) {
   });
 }
 
+export function extractSourceCitations(markdown) {
+  return [...String(markdown).matchAll(SOURCE_CITATION_RE)].map((match) => match[1]);
+}
+
+function sourceCitationPlugin(md) {
+  md.inline.ruler.before("emphasis", "source_citation", (state, silent) => {
+    const match = state.src.slice(state.pos).match(/^\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]/);
+    if (!match) return false;
+    const citation = state.env?.sourceCitationIndex?.get(match[1]);
+    if (!citation) return false;
+    if (silent) return true;
+
+    const open = state.push("link_open", "a", 1);
+    open.attrSet("href", `#evidence-${match[1]}`);
+    open.attrSet("class", "evidence-citation");
+    open.attrSet("aria-label", `근거 ${citation.index}: ${citation.title}`);
+    const label = state.push("text", "", 0);
+    label.content = `[${citation.index}]`;
+    state.push("link_close", "a", -1);
+    state.pos += match[0].length;
+    return true;
+  });
+}
+
+function scrollableTablePlugin(md) {
+  const tableOpen = md.renderer.rules.table_open ?? (() => "<table>\n");
+  const tableClose = md.renderer.rules.table_close ?? (() => "</table>\n");
+  md.renderer.rules.table_open = (tokens, index, options, env, renderer) =>
+    `<div class="table-scroll" data-table-scroll tabindex="0" role="region" aria-label="표, 가로로 스크롤할 수 있습니다">${tableOpen(tokens, index, options, env, renderer)}`;
+  md.renderer.rules.table_close = (tokens, index, options, env, renderer) =>
+    `${tableClose(tokens, index, options, env, renderer)}</div>`;
+}
+
 function externalLinkPlugin(md) {
   const fallback = md.renderer.rules.link_open ?? ((tokens, index, options, env, renderer) =>
     renderer.renderToken(tokens, index, options));
@@ -104,7 +139,9 @@ export function createMarkdownRenderer(options) {
   });
   md.use(wikiLinkPlugin, options);
   md.use(calloutPlugin);
+  md.use(sourceCitationPlugin);
   md.use(externalLinkPlugin);
+  md.use(scrollableTablePlugin);
   md.use(markdownItAnchor, {
     level: [2, 3, 4],
     slugify: headingSlug
@@ -113,11 +150,24 @@ export function createMarkdownRenderer(options) {
 }
 
 export function renderMarkdownPage(md, page) {
-  const html = md.render(page.body);
+  const citations = extractSourceCitations(page.body);
+  const allowed = new Set(page.data.source_refs);
+  for (const sourceId of citations) {
+    if (!allowed.has(sourceId)) {
+      throw new Error(`${page.relativePath}: 본문 근거 표식 ${sourceId}가 source_refs에 없습니다.`);
+    }
+  }
+  const sourceCitationIndex = new Map(page.sourcePages.map((source, index) => [source.data.source_id, {
+    index: index + 1,
+    title: source.data.title
+  }]));
+  const html = md.render(page.body, { page, sourceCitationIndex });
+  const leadMatch = html.match(/^<p>([\s\S]*?)<\/p>\n?/);
+  const contentHtml = leadMatch ? html.slice(leadMatch[0].length) : html;
   const toc = [];
   const headingPattern = /<h([23])\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g;
   for (const match of html.matchAll(headingPattern)) {
     toc.push({ level: Number(match[1]), id: match[2], title: textFromHtml(match[3]) });
   }
-  return { html, toc };
+  return { html, contentHtml, toc };
 }
