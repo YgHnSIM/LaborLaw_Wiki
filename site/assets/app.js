@@ -88,7 +88,39 @@ function scoreDocument(document, query) {
   return score;
 }
 
-function createResult(entry, index) {
+function appendHighlightedText(target, value, tokens) {
+  const text = String(value ?? "");
+  const usefulTokens = [...new Set(tokens.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!usefulTokens.length) {
+    target.textContent = text;
+    return;
+  }
+  const escaped = usefulTokens.map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})`, "giu");
+  let position = 0;
+  for (const match of text.matchAll(pattern)) {
+    if (match.index > position) target.append(document.createTextNode(text.slice(position, match.index)));
+    const mark = document.createElement("mark");
+    mark.textContent = match[0];
+    target.append(mark);
+    position = match.index + match[0].length;
+  }
+  if (position < text.length) target.append(document.createTextNode(text.slice(position)));
+}
+
+function resultSnippet(entry, tokens) {
+  const excerpt = String(entry.excerpt || "");
+  if (!tokens.length || tokens.some((token) => normalize(excerpt).includes(token))) return excerpt || "요약이 없는 문서입니다.";
+  const body = String(entry.body || "");
+  const normalizedBody = normalize(body);
+  const first = tokens.map((token) => normalizedBody.indexOf(token)).filter((index) => index >= 0).sort((a, b) => a - b)[0];
+  if (first === undefined) return excerpt || "요약이 없는 문서입니다.";
+  const start = Math.max(0, first - 55);
+  const end = Math.min(body.length, start + 190);
+  return `${start > 0 ? "…" : ""}${body.slice(start, end).trim()}${end < body.length ? "…" : ""}`;
+}
+
+function createResult(entry, index, tokens) {
   const link = document.createElement("a");
   link.className = "search-result";
   link.href = entry.url;
@@ -99,9 +131,9 @@ function createResult(entry, index) {
 
   const content = window.document.createElement("div");
   const title = window.document.createElement("h3");
-  title.textContent = entry.title;
+  appendHighlightedText(title, entry.title, tokens);
   const excerpt = window.document.createElement("p");
-  excerpt.textContent = entry.excerpt || "요약이 없는 문서입니다.";
+  appendHighlightedText(excerpt, resultSnippet(entry, tokens), tokens);
   content.append(title, excerpt);
 
   const meta = window.document.createElement("div");
@@ -111,6 +143,11 @@ function createResult(entry, index) {
   const status = window.document.createElement("span");
   status.textContent = entry.statusLabel;
   meta.append(category, status);
+  if (entry.legalArea) {
+    const area = window.document.createElement("span");
+    area.textContent = entry.legalArea;
+    meta.append(area);
+  }
 
   link.append(number, content, meta);
   return link;
@@ -121,14 +158,18 @@ function setupSearch() {
   const input = dialog?.querySelector("[data-search-input]");
   const results = dialog?.querySelector("[data-search-results]");
   const guidance = dialog?.querySelector("[data-search-guidance]");
+  const categoryFilter = dialog?.querySelector("[data-search-category]");
+  const statusFilter = dialog?.querySelector("[data-search-status]");
+  const areaFilter = dialog?.querySelector("[data-search-area]");
   const openButtons = document.querySelectorAll("[data-search-open]");
   const closeButton = dialog?.querySelector("[data-search-close]");
-  if (!dialog || !input || !results || !guidance) return;
+  if (!dialog || !input || !results || !guidance || !categoryFilter || !statusFilter || !areaFilter) return;
 
   let documents = null;
   let loading = null;
   let selectedIndex = -1;
   let debounceTimer = null;
+  let visibleLimit = 12;
 
   const loadIndex = async () => {
     if (documents) return documents;
@@ -154,12 +195,30 @@ function setupSearch() {
     links[selectedIndex].scrollIntoView({ block: "nearest" });
   };
 
+  const syncUrl = () => {
+    const url = new URL(window.location.href);
+    const values = {
+      q: input.value.trim(),
+      category: categoryFilter.value,
+      status: statusFilter.value,
+      area: areaFilter.value
+    };
+    for (const [key, value] of Object.entries(values)) {
+      if (value) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
+    }
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
   const render = async () => {
     const query = normalize(input.value);
+    const tokens = query.split(/\s+/).filter(Boolean);
     selectedIndex = -1;
     results.replaceChildren();
-    if (!query) {
+    const hasFilters = categoryFilter.value || statusFilter.value || areaFilter.value;
+    if (!query && !hasFilters) {
       guidance.textContent = "제목·별칭·본문·사건번호·출처 ID를 검색합니다.";
+      syncUrl();
       return;
     }
 
@@ -167,11 +226,13 @@ function setupSearch() {
     try {
       const index = await loadIndex();
       const matches = index
-        .map((entry) => ({ entry, score: scoreDocument(entry, query) }))
+        .filter((entry) => !categoryFilter.value || entry.category === categoryFilter.value)
+        .filter((entry) => !statusFilter.value || entry.status === statusFilter.value)
+        .filter((entry) => !areaFilter.value || entry.legalArea === areaFilter.value)
+        .map((entry) => ({ entry, score: query ? scoreDocument(entry, query) : 0 }))
         .filter((match) => match.score >= 0)
-        .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title, "ko"))
-        .slice(0, 12);
-      guidance.textContent = `검색 결과 ${matches.length}개${matches.length === 12 ? " (상위 12개)" : ""}`;
+        .sort((a, b) => b.score - a.score || b.entry.updated.localeCompare(a.entry.updated) || a.entry.title.localeCompare(b.entry.title, "ko"));
+      guidance.textContent = `검색 결과 ${matches.length}개 · ${Math.min(visibleLimit, matches.length)}개 표시`;
       if (!matches.length) {
         const empty = document.createElement("p");
         empty.className = "search-empty";
@@ -180,8 +241,20 @@ function setupSearch() {
         return;
       }
       const fragment = document.createDocumentFragment();
-      matches.forEach(({ entry }, indexNumber) => fragment.append(createResult(entry, indexNumber)));
+      matches.slice(0, visibleLimit).forEach(({ entry }, indexNumber) => fragment.append(createResult(entry, indexNumber, tokens)));
+      if (matches.length > visibleLimit) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "search-more";
+        more.textContent = `${Math.min(12, matches.length - visibleLimit)}개 더 보기`;
+        more.addEventListener("click", () => {
+          visibleLimit += 12;
+          render();
+        });
+        fragment.append(more);
+      }
       results.append(fragment);
+      syncUrl();
     } catch (error) {
       guidance.textContent = "검색 색인을 불러오지 못했습니다.";
       const empty = document.createElement("p");
@@ -192,25 +265,38 @@ function setupSearch() {
     }
   };
 
-  const open = () => {
+  const open = (preset = {}) => {
+    if (preset.area !== undefined) areaFilter.value = preset.area;
+    if (preset.status !== undefined) statusFilter.value = preset.status;
+    if (preset.category !== undefined) categoryFilter.value = preset.category;
+    visibleLimit = 12;
     if (!dialog.open) dialog.showModal();
     window.setTimeout(() => input.focus(), 0);
-    loadIndex().catch(() => {});
+    loadIndex().then(() => render()).catch(() => {});
   };
 
   const close = () => {
     if (dialog.open) dialog.close();
   };
 
-  openButtons.forEach((button) => button.addEventListener("click", open));
+  openButtons.forEach((button) => button.addEventListener("click", () => open({
+    area: button.dataset.searchPresetArea,
+    status: button.dataset.searchPresetStatus,
+    category: button.dataset.searchPresetCategory
+  })));
   closeButton?.addEventListener("click", close);
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) close();
   });
   input.addEventListener("input", () => {
     window.clearTimeout(debounceTimer);
+    visibleLimit = 12;
     debounceTimer = window.setTimeout(render, 90);
   });
+  [categoryFilter, statusFilter, areaFilter].forEach((filter) => filter.addEventListener("change", () => {
+    visibleLimit = 12;
+    render();
+  }));
   input.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -234,6 +320,33 @@ function setupSearch() {
       open();
     }
   });
+
+  const url = new URL(window.location.href);
+  input.value = url.searchParams.get("q") || "";
+  categoryFilter.value = url.searchParams.get("category") || "";
+  statusFilter.value = url.searchParams.get("status") || "";
+  areaFilter.value = url.searchParams.get("area") || "";
+  if (input.value || categoryFilter.value || statusFilter.value || areaFilter.value) open();
+}
+
+function setupCategoryFilters() {
+  const controls = document.querySelector("[data-category-filters]");
+  const cards = [...document.querySelectorAll("[data-document-card]")];
+  if (!controls || !cards.length) return;
+  const status = controls.querySelector("[data-category-status]");
+  const area = controls.querySelector("[data-category-area]");
+  const count = controls.querySelector("[data-category-count]");
+  const apply = () => {
+    let visible = 0;
+    for (const card of cards) {
+      const show = (!status?.value || card.dataset.status === status.value) && (!area?.value || card.dataset.area === area.value);
+      card.hidden = !show;
+      if (show) visible += 1;
+    }
+    if (count) count.textContent = String(visible);
+  };
+  status?.addEventListener("change", apply);
+  area?.addEventListener("change", apply);
 }
 
 function setupReadingCoordinates() {
@@ -241,6 +354,10 @@ function setupReadingCoordinates() {
   const tocLinks = [...document.querySelectorAll("[data-toc-link]")];
   const railIndex = document.querySelector("[data-rail-index]");
   const railTitle = document.querySelector("[data-rail-title]");
+  const mobileTitle = document.querySelector("[data-mobile-toc-current]");
+  const mobileToc = document.querySelector("[data-mobile-toc]");
+  const progress = document.querySelector("[data-reading-progress]");
+  const article = document.querySelector(".prose");
   if (!headings.length) return;
 
   let h2Index = 0;
@@ -256,6 +373,7 @@ function setupReadingCoordinates() {
     const coordinate = String(index + 1).padStart(2, "0");
     if (railIndex) railIndex.textContent = coordinate;
     if (railTitle) railTitle.textContent = heading.textContent.trim();
+    if (mobileTitle) mobileTitle.textContent = heading.textContent.trim();
     tocLinks.forEach((link) => {
       let fragment = link.hash.slice(1);
       try {
@@ -274,8 +392,37 @@ function setupReadingCoordinates() {
 
   headings.forEach((heading) => observer.observe(heading));
   activate(headings[0]);
+
+  mobileToc?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
+    mobileToc.open = false;
+  }));
+  mobileToc?.querySelector("[data-scroll-top]")?.addEventListener("click", () => {
+    window.scrollTo(0, 0);
+    mobileToc.open = false;
+  });
+
+  if (progress && article) {
+    let scheduled = false;
+    const updateProgress = () => {
+      const top = article.offsetTop;
+      const distance = Math.max(article.offsetHeight - window.innerHeight * 0.65, 1);
+      const value = Math.max(0, Math.min(100, ((window.scrollY - top) / distance) * 100));
+      progress.value = value;
+      progress.setAttribute("aria-valuetext", `${Math.round(value)}% 읽음`);
+      scheduled = false;
+    };
+    const scheduleProgress = () => {
+      if (scheduled) return;
+      scheduled = true;
+      window.requestAnimationFrame(updateProgress);
+    };
+    window.addEventListener("scroll", scheduleProgress, { passive: true });
+    window.addEventListener("resize", scheduleProgress);
+    updateProgress();
+  }
 }
 
 setupMobileMenu();
 setupSearch();
+setupCategoryFilters();
 setupReadingCoordinates();

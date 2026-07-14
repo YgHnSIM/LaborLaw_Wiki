@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: [로그, 변경 이력]
 tags: [type/meta, domain/labor-law, status/active]
 created: 2026-06-01
-updated: 2026-07-11
+updated: 2026-07-14
 status: active
 source_refs: []
 ---
@@ -242,6 +242,15 @@ source_refs: []
 - `site/assets/styles.css`에서 모바일 중첩 목록의 높이와 여백을 줄이고 스크롤 이동이 바깥 문서로 전파되지 않도록 조정함. 390×844 화면에서 개념 47개 목록과 현재 문서 강조를 검증함.
 - `site/tests/build.test.mjs`에 번호·제목 마크업, 무밑줄 링크, 활성 면과 모바일 행 규칙을 보존하는 회귀 검사를 추가함.
 - `wiki/log.md`에 모바일 문서 탐색의 재현 조건, 수정 범위와 브라우저 검증 결과를 기록함.
+
+## [2026-07-14] chore | 콘텐츠 중심 UI·검색·모바일 읽기 경험 강화
+
+- `site/templates.mjs`에서 홈페이지의 전체 개요를 다시 노출하고 실제 문서 메타데이터를 바탕으로 영역별 성숙도, 근거 연결이 많은 분석, 최근 갱신, 검토 문서 대시보드를 추가함.
+- `site/assets/styles.css`에서 배포 글꼴을 시스템 Arial·Times New Roman·Courier New 조합으로 전환하고 순백·검정·순수 파랑의 Brutalist 공보형 디자인을 유지하면서 Container Queries, `content-visibility`, View Transitions, 고대비·강제 색상 대응을 추가함.
+- `site/assets/app.js`와 `site/build.mjs`에서 검색의 분류·상태·영역 필터, 검색어 강조, 더 보기, URL 상태 복원, 분류 목록 필터를 구현하고 배포 산출물에서 사용하지 않는 글꼴 자산을 제외함.
+- `site/templates.mjs`, `site/assets/app.js`, `site/assets/styles.css`에 현재 절, 절 목록, 읽기 진행률, 맨 위로 이동을 제공하는 모바일 목차를 추가하고 현재 분류의 사이드바 문서를 주변 11개와 전체 목록 링크로 제한함.
+- `site/tests/build.test.mjs`에 홈 콘텐츠, 실제 메타데이터 대시보드, 검색·분류 필터, 모바일 목차, 최신 CSS, 시스템 글꼴과 정적 자산 예산 회귀 검사를 추가하고 데스크톱·390×844 모바일 화면과 검색 상호작용을 실제 브라우저에서 검증함.
+- `wiki/log.md`에 UI·검색·성능·접근성 변경 범위와 검증 결과를 기록함.
 
 ## 관련 항목
 

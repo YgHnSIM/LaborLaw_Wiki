@@ -9,6 +9,7 @@ import {
 } from "./lib/wiki.mjs";
 
 const collator = new Intl.Collator("ko-KR", { numeric: true, sensitivity: "base" });
+const LEGAL_AREA_ORDER = ["근로기준", "집단노동", "산재", "고용평등", "비정규직", "퇴직급여", "중대재해", "입법사"];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -84,11 +85,15 @@ function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
     const meta = CATEGORY_META[category];
     const pages = wiki.groups[category];
     const current = currentCategory === category;
-    const pageList = current
-      ? `<ul class="sidebar-pages">${pages.map((page, index) => {
+    const currentIndex = currentPage ? pages.indexOf(currentPage) : -1;
+    const visibleStart = Math.max(0, Math.min(currentIndex - 5, pages.length - 11));
+    const visiblePages = currentIndex >= 0 ? pages.slice(visibleStart, visibleStart + 11) : [];
+    const pageList = current && visiblePages.length
+      ? `<ul class="sidebar-pages">${visiblePages.map((page) => {
+          const index = pages.indexOf(page);
           const active = currentPage?.route === page.route ? ' class="is-active" aria-current="page"' : "";
           return `<li><a${active} href="${siteHref(basePath, page.route)}"><span class="sidebar-page-index" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span><span class="sidebar-page-label">${escapeHtml(pageLabel(page))}</span></a></li>`;
-        }).join("")}</ul>`
+        }).join("")}<li class="sidebar-pages-all"><a href="${siteHref(basePath, `/${category}/`)}">전체 ${pages.length}개 문서 보기</a></li></ul>`
       : "";
     return `<li class="sidebar-group${current ? " is-current" : ""}">
       <a class="sidebar-group-link" href="${siteHref(basePath, `/${category}/`)}">
@@ -116,6 +121,8 @@ function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
 }
 
 function renderSearchDialog(basePath) {
+  const categoryOptions = CATEGORY_ORDER.map((category) => `<option value="${category}">${escapeHtml(CATEGORY_META[category].shortLabel)}</option>`).join("");
+  const areaOptions = LEGAL_AREA_ORDER.map((area) => `<option value="${escapeAttr(area)}">${escapeHtml(area)}</option>`).join("");
   return `
     <dialog class="search-dialog" id="search-dialog" data-search-url="${siteHref(basePath, "/search.json")}" aria-labelledby="search-dialog-title">
       <div class="search-head">
@@ -127,6 +134,11 @@ function renderSearchDialog(basePath) {
         ${svgIcon("search")}
         <input type="search" autocomplete="off" spellcheck="false" placeholder="개념, 사건번호, 출처 ID 검색" data-search-input>
       </label>
+      <div class="search-filters" aria-label="검색 필터">
+        <label><span>분류</span><select data-search-category><option value="">전체</option>${categoryOptions}</select></label>
+        <label><span>상태</span><select data-search-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>
+        <label><span>영역</span><select data-search-area><option value="">전체</option>${areaOptions}</select></label>
+      </div>
       <p class="search-guidance" data-search-guidance>제목·별칭·본문·사건번호·출처 ID를 검색합니다.</p>
       <div class="search-results" data-search-results aria-live="polite"></div>
     </dialog>`;
@@ -225,6 +237,16 @@ function renderToc(toc, basePath, pageRoute) {
   </aside>`;
 }
 
+function renderMobileToc(toc, basePath, pageRoute) {
+  if (!toc.length) return "";
+  return `<details class="mobile-toc" data-mobile-toc>
+    <summary><span>이 문서에서</span><strong data-mobile-toc-current>${escapeHtml(toc[0].title)}</strong><small>${toc.length}개 절</small></summary>
+    <progress max="100" value="0" aria-label="문서 읽기 진행률" data-reading-progress></progress>
+    <ol>${toc.map((heading, index) => `<li class="toc-level-${heading.level}"><a href="${siteHref(basePath, `${pageRoute}#${heading.id}`)}" data-toc-link data-section-index="${String(index + 1).padStart(2, "0")}">${escapeHtml(heading.title)}</a></li>`).join("")}</ol>
+    <button type="button" data-scroll-top>맨 위로</button>
+  </details>`;
+}
+
 function renderPrevNext(page, wiki, basePath) {
   if (page.route === "/") return "";
   const pages = wiki.groups[page.category];
@@ -241,11 +263,52 @@ function renderPrevNext(page, wiki, basePath) {
 function renderHomeStats(wiki, basePath) {
   const stats = [
     ["전체 문서", wiki.stats.pages, "/catalog/"],
-    ["출처", wiki.stats.sources, "/sources/"],
-    ["개념", wiki.stats.concepts, "/concepts/"],
-    ["분석", wiki.stats.analyses, "/analyses/"]
+    ["활성", wiki.stats.statuses.active ?? 0, "/catalog/"],
+    ["초안", wiki.stats.statuses.draft ?? 0, "/catalog/"],
+    ["검토", wiki.stats.statuses.review ?? 0, "/catalog/"]
   ];
   return `<section class="home-stats" aria-label="위키 현황">${stats.map(([label, value, route], index) => `<a href="${siteHref(basePath, route)}"><span>${String(index + 1).padStart(2, "0")}</span><strong>${value}</strong><small>${escapeHtml(label)}</small></a>`).join("")}</section>`;
+}
+
+function renderAreaDashboard(wiki) {
+  const counts = new Map();
+  for (const page of wiki.pages) {
+    const area = page.data.legal_area;
+    if (!area) continue;
+    const current = counts.get(area) ?? { total: 0, active: 0, draft: 0, review: 0 };
+    current.total += 1;
+    current[page.data.status] = (current[page.data.status] ?? 0) + 1;
+    counts.set(area, current);
+  }
+  const areas = [...counts.entries()].sort((a, b) => {
+    const aIndex = LEGAL_AREA_ORDER.indexOf(a[0]);
+    const bIndex = LEGAL_AREA_ORDER.indexOf(b[0]);
+    return (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex) || collator.compare(a[0], b[0]);
+  });
+  return `<section class="home-dashboard home-area-dashboard" aria-labelledby="home-area-title">
+    <header><span>01</span><div><h2 id="home-area-title">영역별 현황</h2><p>문서의 법률 영역과 현재 검토 상태를 함께 봅니다.</p></div></header>
+    <ul>${areas.map(([area, count]) => `<li><button type="button" data-search-open data-search-preset-area="${escapeAttr(area)}"><strong>${escapeHtml(area)}</strong><span>${count.total}개</span><small>활성 ${count.active || 0} · 초안 ${count.draft || 0} · 검토 ${count.review || 0}</small></button></li>`).join("")}</ul>
+  </section>`;
+}
+
+function renderHomeCollections(wiki, basePath) {
+  const analyses = [...wiki.groups.analyses]
+    .sort((a, b) => b.sourceCount - a.sourceCount || b.data.updated.localeCompare(a.data.updated) || collator.compare(a.data.title, b.data.title))
+    .slice(0, 4);
+  const recent = wiki.pages
+    .filter((page) => !["index.md", "log.md", "overview.md"].includes(page.relativePath))
+    .sort((a, b) => b.data.updated.localeCompare(a.data.updated) || collator.compare(a.data.title, b.data.title))
+    .slice(0, 6);
+  const review = wiki.pages
+    .filter((page) => page.data.status === "review")
+    .sort((a, b) => b.data.updated.localeCompare(a.data.updated) || collator.compare(a.data.title, b.data.title))
+    .slice(0, 6);
+  const list = (pages, kind) => pages.map((page, index) => `<li><a href="${siteHref(basePath, page.route)}"><span>${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(page.data.title)}</strong><small>${kind === "analysis" ? `근거 ${page.sourceCount}` : `${escapeHtml(CATEGORY_META[page.category].shortLabel)} · ${escapeHtml(displayDate(page.data.updated))}`}</small></div></a></li>`).join("");
+  return `<div class="home-collections">
+    <section class="home-dashboard" aria-labelledby="home-analysis-title"><header><span>02</span><div><h2 id="home-analysis-title">근거 연결이 많은 분석</h2><p>여러 출처를 종합한 분석 문서입니다.</p></div></header><ol>${list(analyses, "analysis")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/analyses/")}">분석 전체 보기</a></section>
+    <section class="home-dashboard" aria-labelledby="home-recent-title"><header><span>03</span><div><h2 id="home-recent-title">최근 갱신</h2><p>갱신일을 기준으로 정렬했습니다.</p></div></header><ol>${list(recent, "recent")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/catalog/")}">전체 색인 보기</a></section>
+    <section class="home-dashboard" aria-labelledby="home-review-title"><header><span>04</span><div><h2 id="home-review-title">검토가 필요한 문서</h2><p>모순 경고나 추가 확인 사항이 남아 있습니다.</p></div></header><ol>${list(review, "review")}</ol>${review.length < (wiki.stats.statuses.review ?? 0) ? `<button class="dashboard-more" type="button" data-search-open data-search-preset-status="review">검토 문서 전체 보기</button>` : ""}</section>
+  </div>`;
 }
 
 function renderHead({ title, description, canonical, basePath, page, siteName, siteUrl, pageKind, noindex }) {
@@ -311,7 +374,7 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
   const isHome = page.route === "/";
   const folio = isHome ? "00" : category.number;
   const canonical = absoluteUrl(siteUrl, page.route);
-  const articleHtml = isHome ? rendered.html.split(/<h2(?:\s|>)/, 1)[0].trim() : rendered.html;
+  const articleHtml = rendered.html;
   const aliases = page.data.aliases.length ? `<p class="aliases"><span>다른 이름</span>${page.data.aliases.map((alias) => `<span>${escapeHtml(alias)}</span>`).join("")}</p>` : "";
   const metaFacts = [
     pageStatusBadge(page),
@@ -331,13 +394,16 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
       </div>
     </header>
     ${isHome ? renderHomeStats(wiki, basePath) : ""}
+    ${isHome ? renderAreaDashboard(wiki) : ""}
+    ${isHome ? renderHomeCollections(wiki, basePath) : ""}
     ${renderStatusNotice(page)}
     ${renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef })}
     ${renderEvidencePanel(page, basePath)}
     ${renderCitedBy(page, basePath)}
-    <div class="article-layout${isHome ? " home-description-layout" : ""}">
+    ${renderMobileToc(rendered.toc, basePath, page.route)}
+    <div class="article-layout">
       <article class="prose${isHome ? " home-description" : ""}">${articleHtml}</article>
-      ${isHome ? "" : renderToc(rendered.toc, basePath, page.route)}
+      ${renderToc(rendered.toc, basePath, page.route)}
     </div>
     ${renderPrevNext(page, wiki, basePath)}
   </main>`;
@@ -359,17 +425,28 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
 export function renderCategoryPage({ category, wiki, basePath, siteUrl, repositoryUrl }) {
   const meta = CATEGORY_META[category];
   const pages = [...wiki.groups[category]].sort((a, b) => collator.compare(a.data.title, b.data.title));
-  const cards = pages.map((page, index) => `<li>
+  const statusCounts = pages.reduce((counts, page) => {
+    counts[page.data.status] = (counts[page.data.status] ?? 0) + 1;
+    return counts;
+  }, {});
+  const areas = [...new Set(pages.map((page) => page.data.legal_area).filter(Boolean))].sort((a, b) => collator.compare(a, b));
+  const cards = pages.map((page, index) => `<li data-document-card data-status="${escapeAttr(page.data.status)}" data-area="${escapeAttr(page.data.legal_area || "")}">
     <a href="${siteHref(basePath, page.route)}">
       <span class="card-index">${String(index + 1).padStart(2, "0")}</span>
       <div><h2>${escapeHtml(page.data.title)}</h2><p>${escapeHtml(page.excerpt)}</p></div>
       <footer>${pageStatusBadge(page)}<span>근거 ${page.sourceCount}</span><span>${escapeHtml(displayDate(page.data.updated))}</span></footer>
     </a>
   </li>`).join("");
+  const areaOptions = areas.map((area) => `<option value="${escapeAttr(area)}">${escapeHtml(area)}</option>`).join("");
   const route = `/${category}/`;
   const main = `<main id="main-content" class="main-content category-main">
     <nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span>/</span><span>${escapeHtml(meta.shortLabel)}</span></nav>
-    <header class="category-hero"><span class="category-number" aria-hidden="true">${meta.number}</span><div><p>${pages.length}개 문서</p><h1>${escapeHtml(meta.shortLabel)}</h1><p>${escapeHtml(meta.description)}</p></div></header>
+    <header class="category-hero"><span class="category-number" aria-hidden="true">${meta.number}</span><div><p>${pages.length}개 문서</p><h1>${escapeHtml(meta.shortLabel)}</h1><p>${escapeHtml(meta.description)}</p><p class="category-maturity">활성 ${statusCounts.active ?? 0} · 초안 ${statusCounts.draft ?? 0} · 검토 ${statusCounts.review ?? 0}</p></div></header>
+    <div class="category-controls" data-category-filters>
+      <p><strong data-category-count>${pages.length}</strong>개 문서 표시</p>
+      <label><span>상태</span><select data-category-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>
+      ${areas.length ? `<label><span>영역</span><select data-category-area><option value="">전체</option>${areaOptions}</select></label>` : ""}
+    </div>
     <ol class="document-grid">${cards}</ol>
   </main>`;
   return renderShell({

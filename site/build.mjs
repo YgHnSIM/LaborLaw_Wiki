@@ -36,13 +36,14 @@ async function writeFileEnsured(filePath, content) {
   await fs.writeFile(filePath, content, "utf8");
 }
 
-async function copyDirectory(source, destination) {
+async function copyDirectory(source, destination, options = {}) {
   await fs.mkdir(destination, { recursive: true });
   const entries = await fs.readdir(source, { withFileTypes: true });
   await Promise.all(entries.map(async (entry) => {
+    if (options.exclude?.has(entry.name)) return;
     const from = path.join(source, entry.name);
     const to = path.join(destination, entry.name);
-    if (entry.isDirectory()) await copyDirectory(from, to);
+    if (entry.isDirectory()) await copyDirectory(from, to, options);
     else if (entry.isFile()) await fs.copyFile(from, to);
   }));
 }
@@ -75,6 +76,8 @@ function buildSearchIndex(wiki, basePath) {
     categoryLabel: CATEGORY_META[page.category].shortLabel,
     status: page.data.status,
     statusLabel: statusLabel(page.data.status),
+    legalArea: page.data.legal_area || "",
+    sourceType: page.data.source_type || "",
     updated: page.data.updated,
     url: siteHref(basePath, page.route),
     excerpt: page.excerpt,
@@ -83,9 +86,7 @@ function buildSearchIndex(wiki, basePath) {
     metadata: searchMetadata(page),
     body: ["index.md", "log.md"].includes(page.relativePath)
       ? ""
-      : page.route === "/"
-        ? page.excerpt
-        : page.searchText
+      : page.searchText
   }));
 }
 
@@ -148,7 +149,7 @@ export async function buildSite(options = {}) {
 
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(outputDir, { recursive: true });
-  await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"));
+  await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"), { exclude: new Set(["fonts"]) });
 
   await Promise.all(renderedPages.map(async ({ page, rendered }) => {
     const html = renderPage({ page, rendered, wiki, basePath, siteUrl, repositoryUrl, repositoryRef });
