@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -306,6 +307,28 @@ test("다음 문서 제목은 화살표 공간을 확보한다", async () => {
   assert.match(css, /\.prev-next \.next strong\s*\{[^}]*margin-right:\s*2rem;/);
 });
 
+test("본문 글꼴 선택은 리디바탕을 기본값으로 저장하고 복원한다", async () => {
+  const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
+  assert.match(homeHtml, /data-body-font="ridibatang"/);
+  assert.match(homeHtml, /<section class="reader-settings" aria-label="읽기 설정">/);
+  assert.match(homeHtml, /<select id="body-font-select" data-body-font-select>/);
+  assert.match(homeHtml, /<option value="ridibatang">리디바탕<\/option>/);
+  assert.match(homeHtml, /<option value="maruburi">마루부리<\/option>/);
+  assert.match(homeHtml, /<option value="system">시스템 바탕<\/option>/);
+  assert.match(homeHtml, /<option value="d2coding">D2Coding<\/option>/);
+  assert.match(homeHtml, /localStorage\.getItem\("laborlaw-body-font"\)/);
+
+  const app = await fs.readFile(path.join(rootDir, "site", "assets", "app.js"), "utf8");
+  assert.match(app, /select\.value = root\.dataset\.bodyFont/);
+  assert.match(app, /localStorage\.setItem\("laborlaw-body-font", select\.value\)/);
+
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  assert.match(css, /:root\[data-body-font="maruburi"\]\s*\{[^}]*--font-body:\s*"MaruBuri"/);
+  assert.match(css, /:root\[data-body-font="system"\]\s*\{[^}]*--font-body:\s*"Times New Roman"/);
+  assert.match(css, /:root\[data-body-font="d2coding"\]\s*\{[^}]*--font-body:\s*"D2Coding"/);
+  assert.match(css, /\.reader-settings select\s*\{[^}]*font-family:\s*var\(--font-body\);/);
+});
+
 test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사용한다", async () => {
   const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
   assert.match(homeHtml, /data-search-preset-area="집단노동"/);
@@ -376,11 +399,12 @@ test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다",
   }
   assert.match(css, /--font-sans:\s*Arial, system-ui, sans-serif;/);
   assert.match(css, /--font-serif:\s*"Times New Roman", serif;/);
-  assert.match(css, /--font-body:\s*"MaruBuri", "Times New Roman", serif;/);
+  assert.match(css, /--font-body:\s*"RIDIBatang", "Times New Roman", serif;/);
   assert.match(css, /--font-heading:\s*"D2Coding", "Courier New", monospace;/);
   assert.match(css, /--font-mono:\s*"Courier New", monospace;/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"MaruBuri"/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"D2Coding"/);
+  assert.match(css, /@font-face[\s\S]*font-family:\s*"RIDIBatang"/);
   assert.match(css, /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\s*\{[^}]*font-family:\s*var\(--font-heading\);/);
   assert.match(css, /\.prose h2\s*\{[^}]*font-family:\s*var\(--font-heading\);/);
   assert.match(css, /--shadow:\s*8px 8px 0 #000;/);
@@ -401,10 +425,13 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   assert.match(css, /url\("\.\/fonts\/maru-buri\/MaruBuri-Bold\.otf"\)/);
   assert.match(css, /url\("\.\/fonts\/D2Coding-Regular\.ttf"\)/);
   assert.match(css, /url\("\.\/fonts\/D2Coding-Bold\.ttf"\)/);
+  assert.match(css, /url\("\.\/fonts\/ridi-batang\/RIDIBatang\.otf"\)/);
   const fontDir = path.join(outputDir, "assets", "fonts", "maru-buri");
   const fontFiles = ["MaruBuri-Regular.otf", "MaruBuri-Bold.otf"];
   const headingFontDir = path.join(outputDir, "assets", "fonts");
   const headingFontFiles = ["D2Coding-Regular.ttf", "D2Coding-Bold.ttf"];
+  const ridiFontDir = path.join(outputDir, "assets", "fonts", "ridi-batang");
+  const ridiFontFile = path.join(ridiFontDir, "RIDIBatang.otf");
   const fontStats = await Promise.all(fontFiles.map((file) => fs.stat(path.join(fontDir, file))));
   const headingFontStats = await Promise.all(headingFontFiles.map((file) => fs.stat(path.join(headingFontDir, file))));
   const fontHeaders = await Promise.all(fontFiles.map(async (file) => {
@@ -429,20 +456,30 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   }));
   assert.deepEqual(fontHeaders, ["OTTO", "OTTO"]);
   assert.deepEqual(headingFontHeaders, ["00010000", "00010000"]);
+  const ridiFont = await fs.readFile(ridiFontFile);
+  assert.equal(ridiFont.subarray(0, 4).toString("ascii"), "OTTO");
+  assert.equal(createHash("sha256").update(ridiFont).digest("hex"), "f13a49c0815d254ac15e392953a0b056613dec08ceb378e54eeed14c4fda9a54");
   const license = await fs.readFile(path.join(fontDir, "OFL.txt"), "utf8");
   assert.match(license, /Reserved Font Name[\s\S]*MaruBuri/);
   assert.match(license, /SIL OPEN FONT LICENSE Version 1\.1/);
   const headingLicense = await fs.readFile(path.join(headingFontDir, "OFL.txt"), "utf8");
   assert.match(headingLicense, /Reserved Font Name[\s\S]*D2Coding/);
   assert.match(headingLicense, /SIL OPEN FONT LICENSE[\s\S]*Version 1\.1/);
+  const ridiLicense = await fs.readFile(path.join(ridiFontDir, "OFL.txt"), "utf8");
+  assert.match(ridiLicense, /Copyright \(c\) RIDI Corporation/);
+  assert.match(ridiLicense, /SIL OPEN FONT LICENSE Version 1\.1/);
+  const ridiSource = await fs.readFile(path.join(ridiFontDir, "SOURCE.md"), "utf8");
+  assert.match(ridiSource, /ridicorp\.com\/ridibatang\//);
+  assert.match(ridiSource, /F13A49C0815D254AC15E392953A0B056613DEC08CEB378E54EEED14C4FDA9A54/);
   const cssSize = (await fs.stat(path.join(outputDir, "assets", "styles.css"))).size;
   const appSize = (await fs.stat(path.join(outputDir, "assets", "app.js"))).size;
   const searchSize = (await fs.stat(path.join(outputDir, "search.json"))).size;
   const fontSize = fontStats.reduce((total, stat) => total + stat.size, 0);
+  const readingFontSize = fontSize + ridiFont.length;
   const headingFontSize = headingFontStats.reduce((total, stat) => total + stat.size, 0);
   assert.ok(cssSize < 80_000, `CSS ${cssSize} bytes`);
   assert.ok(appSize < 30_000, `JavaScript ${appSize} bytes`);
   assert.ok(searchSize < 600_000, `검색 색인 ${searchSize} bytes`);
-  assert.ok(fontSize < 1_500_000, `본문 글꼴 ${fontSize} bytes`);
+  assert.ok(readingFontSize < 3_200_000, `본문 글꼴 ${readingFontSize} bytes`);
   assert.ok(headingFontSize < 9_000_000, `제목 글꼴 ${headingFontSize} bytes`);
 });

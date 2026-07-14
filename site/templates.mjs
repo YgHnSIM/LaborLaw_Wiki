@@ -116,6 +116,16 @@ function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
         <span>문서 탐색</span>
         <button type="button" class="sidebar-close" data-menu-close>${svgIcon("close")}<span class="sr-only">메뉴 닫기</span></button>
       </div>
+      <section class="reader-settings" aria-label="읽기 설정">
+        <label for="body-font-select">본문 글꼴</label>
+        <select id="body-font-select" data-body-font-select>
+          <option value="ridibatang">리디바탕</option>
+          <option value="maruburi">마루부리</option>
+          <option value="system">시스템 바탕</option>
+          <option value="d2coding">D2Coding</option>
+        </select>
+        <small>이 브라우저에 저장</small>
+      </section>
       <nav>
         <ul class="sidebar-shortcuts">
           <li><a class="${homeActive.trim()}" href="${siteHref(basePath, "/")}"><span class="nav-number">00</span><span>개요</span></a></li>
@@ -404,6 +414,7 @@ function renderHead({ title, description, canonical, basePath, page, siteName, s
     <link rel="icon" href="${siteHref(basePath, "/assets/favicon.svg")}" type="image/svg+xml">
     <link rel="manifest" href="${siteHref(basePath, "/manifest.webmanifest")}">
     <link rel="sitemap" type="application/xml" href="${siteHref(basePath, "/sitemap.xml")}">
+    <script>try { const value = localStorage.getItem("laborlaw-body-font"); if (["ridibatang", "maruburi", "system", "d2coding"].includes(value)) document.documentElement.dataset.bodyFont = value; } catch {}</script>
     <link rel="stylesheet" href="${siteHref(basePath, "/assets/styles.css")}">
     <meta property="og:type" content="${page ? "article" : "website"}">
     <meta property="og:locale" content="ko_KR">
@@ -417,7 +428,7 @@ function renderHead({ title, description, canonical, basePath, page, siteName, s
 function renderShell({ wiki, page = null, currentCategory, title, description, canonical, main, basePath, repositoryUrl, siteUrl, initialRail = "문서 개요", pageKind = "page", noindex = false }) {
   const siteName = "대한민국 노동법 위키";
   return `<!doctype html>
-<html lang="ko" data-base-path="${escapeAttr(basePath)}" data-design="brutalist-gazette">
+<html lang="ko" data-base-path="${escapeAttr(basePath)}" data-design="brutalist-gazette" data-body-font="ridibatang">
   <head>${renderHead({ title, description, canonical, basePath, page, siteName, siteUrl, pageKind, noindex })}</head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>

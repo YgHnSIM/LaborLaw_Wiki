@@ -1,4 +1,12 @@
 @font-face {
+  font-family: "RIDIBatang";
+  src: url("./fonts/ridi-batang/RIDIBatang.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "MaruBuri";
   src: url("./fonts/maru-buri/MaruBuri-Regular.otf") format("opentype");
   font-style: normal;
@@ -46,7 +54,7 @@
   --content-pad: clamp(0.85rem, 2.8vw, 3rem);
   --font-sans: Arial, system-ui, sans-serif;
   --font-serif: "Times New Roman", serif;
-  --font-body: "MaruBuri", "Times New Roman", serif;
+  --font-body: "RIDIBatang", "Times New Roman", serif;
   --font-heading: "D2Coding", "Courier New", monospace;
   --font-mono: "Courier New", monospace;
   --rule: 2px solid #000;
@@ -54,6 +62,18 @@
   --blue-frame: 4px solid #0000ff;
   --shadow: 8px 8px 0 #000;
   --shadow-blue: 8px 8px 0 #0000ff;
+}
+
+:root[data-body-font="maruburi"] {
+  --font-body: "MaruBuri", "Times New Roman", serif;
+}
+
+:root[data-body-font="system"] {
+  --font-body: "Times New Roman", serif;
+}
+
+:root[data-body-font="d2coding"] {
+  --font-body: "D2Coding", "Courier New", monospace;
 }
 
 *,
@@ -372,6 +392,42 @@ summary:focus-visible {
 .sidebar-shortcuts a.is-active {
   box-shadow: inset 8px 0 0 var(--blue);
   color: var(--blue);
+}
+
+.reader-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0.65rem;
+  align-items: center;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 3px solid var(--ink);
+  background: var(--paper);
+}
+
+.reader-settings label {
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.reader-settings select {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  min-width: 8.6rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.55rem;
+  border: var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.reader-settings small {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  line-height: 1.25;
 }
 
 .nav-number {

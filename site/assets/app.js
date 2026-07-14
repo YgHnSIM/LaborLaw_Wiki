@@ -1,6 +1,16 @@
 const root = document.documentElement;
 const body = document.body;
 
+function setupBodyFontPicker() {
+  const select = document.querySelector("[data-body-font-select]");
+  if (!select) return;
+  select.value = root.dataset.bodyFont;
+  select.addEventListener("change", () => {
+    root.dataset.bodyFont = select.value;
+    try { localStorage.setItem("laborlaw-body-font", select.value); } catch {}
+  });
+}
+
 function setupMobileMenu() {
   const toggle = document.querySelector("[data-menu-toggle]");
   const sidebar = document.querySelector("#sidebar");
@@ -706,6 +716,7 @@ function setupEvidenceCitations() {
   revealTarget();
 }
 
+setupBodyFontPicker();
 setupMobileMenu();
 setupSearch();
 setupCategoryFilters();

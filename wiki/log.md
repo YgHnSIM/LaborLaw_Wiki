@@ -260,6 +260,12 @@ source_refs: []
 - `wiki/concepts/`의 단체교섭·사용자성·산업안전보건·임금 페이지에서 해당 출처 ID, 사례 문단과 관련 링크를 제거하고 `wiki/overview.md`와 `wiki/index.md`를 갱신함.
 - 사용자 승인에 따른 이번 한 번의 예외로 `raw/assets/` 원본 1건과 해당 자료의 과거 수집 기록도 제거했으며 운영 규칙 파일은 변경하지 않음.
 
+## [2026-07-15] update | 리디바탕 본문 글꼴과 선택 기능 추가
+
+- `site/assets/fonts/ridi-batang/`에 리디 공식 RIDIBatang OTF 원본과 SIL OFL 1.1 라이선스·출처 기록을 추가하고 기존 마루부리·D2Coding 자산은 유지함.
+- `site/assets/styles.css`, `site/templates.mjs`, `site/assets/app.js`에서 리디바탕을 기본 본문 글꼴로 적용하고 리디바탕·마루부리·시스템 바탕·D2Coding 선택을 브라우저에 저장·복원하도록 구현함.
+- `site/tests/build.test.mjs`에 글꼴 선택 마크업·상태 복원·공식 파일 해시·라이선스·정적 자산 예산 회귀 검사를 추가하고 결과를 `wiki/log.md`에 기록함.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
