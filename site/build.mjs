@@ -18,15 +18,21 @@ import { renderCategoryPage, renderNotFound, renderPage } from "./templates.mjs"
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRoot = path.resolve(moduleDir, "..");
 
+function isSameOrDescendant(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative === ""
+    || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
 function ensureSafeOutput(rootDir, outputDir) {
   const root = path.resolve(rootDir);
   const output = path.resolve(outputDir);
-  const rootPrefix = `${root}${path.sep}`;
-  const outputPrefix = `${output}${path.sep}`;
-  if (output === root || root.startsWith(outputPrefix)) {
+  if (isSameOrDescendant(output, root)) {
     throw new Error(`안전하지 않은 출력 경로입니다: ${output}`);
   }
-  if (output.startsWith(rootPrefix) && !["_site", "dist"].includes(path.basename(output))) {
+  if (isSameOrDescendant(root, output)) {
+    const relative = path.relative(root, output);
+    if (["_site", "dist"].includes(relative)) return;
     throw new Error(`저장소 내부 출력 경로는 _site 또는 dist여야 합니다: ${output}`);
   }
 }

@@ -20,35 +20,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install site dependencies
+        run: npm ci
+
       - name: Run linter unit tests
-        run: python -I -m unittest discover -s tests -p "test_*.py"
+        run: python -I -B -m unittest discover -s tests -p "test_*.py"
+
+      - name: Test site generator
+        run: npm test
 
       - name: Validate current wiki
         if: (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch) || (github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000' && github.ref_name == github.event.repository.default_branch)
-        run: python -I scripts/lint_wiki.py
+        run: python -I -B scripts/lint_wiki.py --strict-warnings
 
       - name: Validate non-default manual run history rules
         if: github.event_name == 'workflow_dispatch' && (github.ref_type != 'branch' || github.ref_name != github.event.repository.default_branch)
         shell: bash
         run: |
           base="$(git merge-base HEAD "origin/${{ github.event.repository.default_branch }}")"
-          python -I scripts/lint_wiki.py --base "$base"
+          python -I -B scripts/lint_wiki.py --base "$base" --strict-warnings
 
       - name: Validate new branch history rules
         if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000' && github.ref_name != github.event.repository.default_branch
         shell: bash
         run: |
           base="$(git merge-base HEAD "origin/${{ github.event.repository.default_branch }}")"
-          python -I scripts/lint_wiki.py --base "$base"
+          python -I -B scripts/lint_wiki.py --base "$base" --strict-warnings
 
       - name: Validate push history rules
         if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
@@ -56,7 +68,7 @@ jobs:
         run: |
           base="${{ github.event.before }}"
           git cat-file -e "${base}^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
-          python -I scripts/lint_wiki.py --base "$base"
+          python -I -B scripts/lint_wiki.py --base "$base" --strict-warnings
 
       - name: Validate pull request with trusted base linter
         if: github.event_name == 'pull_request'
@@ -67,9 +79,9 @@ jobs:
             trusted_lint="$(mktemp scripts/.lint_wiki_base.XXXXXX.py)"
             trap 'rm -f "$trusted_lint"' EXIT
             git show "${base}:scripts/lint_wiki.py" > "$trusted_lint"
-            python -I "$trusted_lint" --base "$base"
+            python -I -B "$trusted_lint" --base "$base" --strict-warnings
           fi
 
       - name: Validate pull request with current linter
         if: github.event_name == 'pull_request'
-        run: python -I scripts/lint_wiki.py --base "${{ github.event.pull_request.base.sha }}"
+        run: python -I -B scripts/lint_wiki.py --base "${{ github.event.pull_request.base.sha }}" --strict-warnings

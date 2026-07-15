@@ -2,8 +2,9 @@ import MarkdownIt from "markdown-it";
 import markdownItAnchor from "markdown-it-anchor";
 import { slug as githubSlug } from "github-slugger";
 import { normalizeLookup, siteHref } from "./wiki.mjs";
+import { extractSourceCitations, parseSourceCitation, parseWikiLink } from "./wiki-syntax.mjs";
 
-const SOURCE_CITATION_RE = /\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]/g;
+export { extractSourceCitations };
 
 export function headingSlug(value) {
   return githubSlug(String(value).normalize("NFC"));
@@ -15,16 +16,11 @@ function wikiLinkPlugin(md, { lookup, basePath }) {
     if (state.src.slice(start, start + 2) !== "[[") return false;
     const end = state.src.indexOf("]]", start + 2);
     if (end < 0) return false;
-    const inner = state.src.slice(start + 2, end);
-    if (!inner || inner.includes("\n")) return false;
+    const link = parseWikiLink(state.src.slice(start, end + 2));
+    if (!link) return false;
     if (silent) return true;
 
-    const pipeIndex = inner.indexOf("|");
-    const targetPart = (pipeIndex >= 0 ? inner.slice(0, pipeIndex) : inner).trim();
-    const label = (pipeIndex >= 0 ? inner.slice(pipeIndex + 1) : "").trim();
-    const hashIndex = targetPart.indexOf("#");
-    const target = (hashIndex >= 0 ? targetPart.slice(0, hashIndex) : targetPart).trim();
-    const section = (hashIndex >= 0 ? targetPart.slice(hashIndex + 1) : "").trim();
+    const { target, section, label } = link;
     const resolved = target ? lookup.get(normalizeLookup(target)) : null;
     const route = resolved?.route ?? "";
     const fragment = section ? `#${headingSlug(section)}` : "";
@@ -71,26 +67,22 @@ function calloutPlugin(md) {
   });
 }
 
-export function extractSourceCitations(markdown) {
-  return [...String(markdown).matchAll(SOURCE_CITATION_RE)].map((match) => match[1]);
-}
-
 function sourceCitationPlugin(md) {
   md.inline.ruler.before("emphasis", "source_citation", (state, silent) => {
-    const match = state.src.slice(state.pos).match(/^\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]/);
-    if (!match) return false;
-    const citation = state.env?.sourceCitationIndex?.get(match[1]);
+    const parsed = parseSourceCitation(state.src.slice(state.pos));
+    if (!parsed) return false;
+    const citation = state.env?.sourceCitationIndex?.get(parsed.sourceId);
     if (!citation) return false;
     if (silent) return true;
 
     const open = state.push("link_open", "a", 1);
-    open.attrSet("href", `#evidence-${match[1]}`);
+    open.attrSet("href", `#evidence-${parsed.sourceId}`);
     open.attrSet("class", "evidence-citation");
     open.attrSet("aria-label", `근거 ${citation.index}: ${citation.title}`);
     const label = state.push("text", "", 0);
     label.content = `[${citation.index}]`;
     state.push("link_close", "a", -1);
-    state.pos += match[0].length;
+    state.pos += parsed.raw.length;
     return true;
   });
 }

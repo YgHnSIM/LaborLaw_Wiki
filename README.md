@@ -115,6 +115,6 @@ npm run build
 
 ## 자동 검사
 
-GitHub Actions는 먼저 린터 단위 테스트를 실행한 뒤 push와 pull request에서 `scripts/lint_wiki.py`를 실행합니다. 검사는 프론트매터·통제어휘·날짜·태그·구조화 판정 이력, H1·관련 항목, 위키링크·섹션, 색인 수록·소스 수, 출처 ID·원본 경로·해시·URL 조회일, 법령 버전, 경고 상태, UTF-8·NFC를 확인합니다. pull request는 대상 커밋, 일반 push는 직전 커밋을 기준으로 기존 원본 파일과 과거 로그의 불변성도 검사합니다. 별도의 Pages 워크플로는 웹 링크 해소, 단일 H1, 출처 계보·역참조, 검색 색인, 프로젝트 기준 경로와 `raw/` 미포함을 검사한 뒤에만 배포합니다.
+GitHub Actions는 push와 pull request에서 Python 단위 테스트, 위키 린트, Node 웹 테스트를 모두 실행하며 경고도 실패로 처리합니다. 위키 검사는 프론트매터·통제어휘·날짜·태그·구조화 판정 이력, H1·관련 항목, 위키링크·섹션, 색인 수록·소스 수, 출처 ID·원본 경로·해시·URL 조회일, 법령 버전, 경고 상태, UTF-8·NFC를 확인합니다. pull request는 대상 커밋, 일반 push는 직전 커밋을 기준으로 기존 원본 파일과 과거 로그의 불변성도 검사합니다. 별도의 Pages 워크플로는 같은 검증을 다시 거친 뒤 웹 링크 해소, 단일 H1, 출처 계보·역참조, 검색 색인, 프로젝트 기준 경로와 `raw/` 미포함을 확인하고 배포합니다.
 
 CI 파일 자체의 무력화를 막으려면 GitHub 저장소의 기본 브랜치 ruleset에서 pull request와 Code Owner 승인을 필수로 하고, `Lint wiki / lint`를 required status check로 지정해야 합니다. 우회 권한은 최소화하며, `.github/CODEOWNERS`가 지정한 `scripts/` 전체, `tests/`, 워크플로, `AGENTS.md`, CODEOWNERS 자체의 변경은 `@YgHnSIM`의 승인을 받습니다. PR 검사는 기준 브랜치의 린터를 임시 복사해 먼저 실행한 뒤 현재 브랜치 린터도 실행하며, 두 실행 모두 Python 격리 모드로 저장소 내부 모듈의 import 가로채기를 차단합니다.

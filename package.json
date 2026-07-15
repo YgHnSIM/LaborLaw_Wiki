@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node site/build.mjs",
     "preview": "npm run build && node site/serve.mjs",
-    "test": "node --check site/assets/app.js && node --test site/tests/*.test.mjs"
+    "test": "node --check site/assets/app.js && node --check site/assets/search-core.js && node --check site/assets/search-worker.js && node --check site/serve.mjs && node --test site/tests/*.test.mjs"
   },
   "engines": {
     "node": ">=22"

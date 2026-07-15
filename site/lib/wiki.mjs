@@ -1,6 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
+import { extractWikiLinks, replaceWikiLinks, stripSourceCitations } from "./wiki-syntax.mjs";
+
+export { extractWikiLinks };
 
 export const CATEGORY_ORDER = ["concepts", "analyses", "entities", "sources", "meta"];
 
@@ -183,9 +186,8 @@ function removeLeadingH1(body, expectedTitle, filePath) {
 }
 
 function plainText(markdown) {
-  return String(markdown)
-    .replace(/\[@SRC-[A-Z0-9][A-Z0-9._-]{2,}\]/g, " ")
-    .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_, target, label) => label || target)
+  return stripSourceCitations(replaceWikiLinks(markdown, ({ target, section, label }) =>
+    label || (section && !target ? section : target)))
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/^>\s*\[![A-Z]+\]\s*/gm, "")
@@ -225,14 +227,6 @@ async function listMarkdownFiles(directory) {
     else if (entry.isFile() && entry.name.endsWith(".md")) results.push(fullPath);
   }
   return results;
-}
-
-export function extractWikiLinks(markdown) {
-  return [...String(markdown).matchAll(/\[\[([^\]]+)\]\]/g)].map((match) => {
-    const [targetPart, label] = match[1].split("|", 2);
-    const [target, section] = targetPart.split("#", 2);
-    return { raw: match[0], target: target.trim(), section: section?.trim() ?? "", label: label?.trim() ?? "" };
-  });
 }
 
 export async function loadWiki(rootDir) {

@@ -39,7 +39,7 @@ before(async () => {
     const category = relative.includes("/") ? relative.split("/", 1)[0] : "meta";
     expectedCategoryCounts[category] += 1;
     const markdown = await fs.readFile(file, "utf8");
-    expectedWikiLinkCount += (markdown.match(/\[\[[^\]]+\]\]/g) ?? []).length;
+    expectedWikiLinkCount += (markdown.match(/\[\[[^\]\r\n]+\]\]/g) ?? []).length;
   }
   outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "labor-law-wiki-site-"));
   result = await buildSite({
@@ -62,6 +62,35 @@ test("모든 위키 문서와 링크를 빌드한다", () => {
   assert.equal(result.wikiLinkCount, expectedWikiLinkCount);
   for (const [category, count] of Object.entries(expectedCategoryCounts)) {
     assert.equal(result.wiki.groups[category].length, count, category);
+  }
+});
+
+test("빌드 출력 경로가 저장소나 상위 디렉터리를 지울 수 없도록 차단한다", async () => {
+  const sandbox = await fs.mkdtemp(path.join(os.tmpdir(), "labor-law-wiki-output-guard-"));
+  const syntheticRoot = path.join(sandbox, "repository");
+  try {
+    await assert.rejects(
+      buildSite({ rootDir: syntheticRoot, outputDir: syntheticRoot }),
+      /안전하지 않은 출력 경로/
+    );
+    await assert.rejects(
+      buildSite({ rootDir: syntheticRoot, outputDir: sandbox }),
+      /안전하지 않은 출력 경로/
+    );
+    await assert.rejects(
+      buildSite({ rootDir: syntheticRoot, outputDir: path.join(syntheticRoot, "site", "generated") }),
+      /저장소 내부 출력 경로는 _site 또는 dist여야 합니다/
+    );
+    await assert.rejects(
+      buildSite({ rootDir: syntheticRoot, outputDir: path.join(syntheticRoot, "raw", "dist") }),
+      /저장소 내부 출력 경로는 _site 또는 dist여야 합니다/
+    );
+    await assert.rejects(
+      buildSite({ rootDir: syntheticRoot, outputDir: path.join(syntheticRoot, "_site", "nested") }),
+      /저장소 내부 출력 경로는 _site 또는 dist여야 합니다/
+    );
+  } finally {
+    await fs.rm(sandbox, { recursive: true, force: true });
   }
 });
 
@@ -363,11 +392,13 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(app, /search-source/);
   assert.match(app, /results\.inert = blocksResults/);
   assert.match(app, /dialog\.addEventListener\("cancel"/);
+  assert.match(app, /from "\.\/search-core\.js"/);
 
   const worker = await fs.readFile(path.join(rootDir, "site", "assets", "search-worker.js"), "utf8");
-  assert.match(worker, /fields\.title === query\) score \+= 1_400/);
-  assert.match(worker, /normalizedAliases\.includes\(query\)\) score \+= 900/);
-  assert.ok((await fs.stat(path.join(outputDir, "assets", "search-worker.js"))).isFile());
+  assert.match(worker, /from "\.\/search-core\.js"/);
+  for (const asset of ["app.js", "search-core.js", "search-worker.js"]) {
+    assert.ok((await fs.stat(path.join(outputDir, "assets", asset))).isFile(), asset);
+  }
 
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   assert.match(css, /container-type:\s*inline-size/);
@@ -472,13 +503,15 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   assert.match(ridiSource, /ridicorp\.com\/ridibatang\//);
   assert.match(ridiSource, /F13A49C0815D254AC15E392953A0B056613DEC08CEB378E54EEED14C4FDA9A54/);
   const cssSize = (await fs.stat(path.join(outputDir, "assets", "styles.css"))).size;
-  const appSize = (await fs.stat(path.join(outputDir, "assets", "app.js"))).size;
+  const javascriptFiles = (await listFiles(path.join(outputDir, "assets"))).filter((file) => file.endsWith(".js"));
+  const javascriptStats = await Promise.all(javascriptFiles.map((file) => fs.stat(file)));
+  const javascriptSize = javascriptStats.reduce((total, stat) => total + stat.size, 0);
   const searchSize = (await fs.stat(path.join(outputDir, "search.json"))).size;
   const fontSize = fontStats.reduce((total, stat) => total + stat.size, 0);
   const readingFontSize = fontSize + ridiFont.length;
   const headingFontSize = headingFontStats.reduce((total, stat) => total + stat.size, 0);
   assert.ok(cssSize < 80_000, `CSS ${cssSize} bytes`);
-  assert.ok(appSize < 30_000, `JavaScript ${appSize} bytes`);
+  assert.ok(javascriptSize < 36_000, `JavaScript 합계 ${javascriptSize} bytes`);
   assert.ok(searchSize < 600_000, `검색 색인 ${searchSize} bytes`);
   assert.ok(readingFontSize < 3_200_000, `본문 글꼴 ${readingFontSize} bytes`);
   assert.ok(headingFontSize < 9_000_000, `제목 글꼴 ${headingFontSize} bytes`);
