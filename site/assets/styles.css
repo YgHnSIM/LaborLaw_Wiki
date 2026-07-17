@@ -3738,6 +3738,13 @@ summary:focus-visible {
     grid-column: 1 / -1;
   }
 
+  .home-search-suggestions[data-has-empty-cell]::after {
+    content: "";
+    border-top: var(--rule);
+    border-left: var(--rule);
+    background: var(--paper);
+  }
+
   .home-search-suggestions button:nth-child(even) {
     border-left: 0;
   }

@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: [로그, 변경 이력]
 tags: [type/meta, domain/labor-law, status/active]
 created: 2026-06-01
-updated: 2026-07-15
+updated: 2026-07-18
 status: active
 source_refs: []
 ---
@@ -274,6 +274,12 @@ source_refs: []
 - `wiki/concepts/`의 [[사용자성]], [[실질적 지배력]], [[단체교섭]], [[교섭단위]], [[원하청 교섭]]과 기존 [[개정 노동조합법 사용자성 판단기준과 원하청 교섭]] 분석을 갱신함.
 - NLRA 공동사용자·혼합 교섭단위는 2026년 3월 논문의 비교법적 설명으로 한정하고, 한국의 교섭단위 분리 및 창구단일화와 동일한 제도로 단정하지 않도록 구분함.
 - `wiki/index.md`와 `wiki/overview.md`를 새 페이지, 분석 진입점과 변경된 소스 수에 맞게 갱신함.
+
+## [2026-07-18] update | 모바일 바로 찾기 홀수 격자 경계선 보정
+
+- `site/templates.mjs`에서 바로 찾기 항목 수가 홀수일 때 마지막 빈 셀 상태를 `data-has-empty-cell`로 표시하도록 보강함.
+- `site/assets/styles.css`의 38rem 이하 2열 격자에서 빈 셀 가상요소에 상단·좌측 규칙선을 적용해 산업재해 아래에서 끊기던 가로선과 마지막 행의 세로선을 닫음.
+- `site/tests/build.test.mjs`에 홀수 격자 상태와 모바일 경계선 규칙을 보존하는 회귀 검사를 추가하고, 390×844 Chrome 렌더링에서 2px 규칙선과 완결된 격자를 확인한 결과를 `wiki/log.md`에 기록함.
 
 ## 관련 항목
 

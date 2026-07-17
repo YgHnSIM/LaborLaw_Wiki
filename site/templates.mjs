@@ -320,10 +320,11 @@ function renderPrevNext(page, wiki, basePath) {
 
 function renderHomeSearch(basePath) {
   const suggestions = ["통상임금", "해고", "근로시간", "산업재해", "원하청 교섭"];
+  const hasEmptySuggestionCell = suggestions.length % 2 === 1;
   return `<section class="home-search" aria-labelledby="home-search-title">
     <header><span aria-hidden="true">S</span><div><h2 id="home-search-title">노동법 문서 찾기</h2><p>개념, 사건번호, 법령과 출처 ID를 한 번에 검색합니다.</p></div></header>
     <button class="home-search-launch" type="button" data-search-open>${svgIcon("search")}<span>확인하려는 개념이나 사건번호를 입력하세요</span><kbd>/</kbd></button>
-    <div class="home-search-suggestions"><span>바로 찾기</span>${suggestions.map((query) => `<button type="button" data-search-open data-search-preset-query="${escapeAttr(query)}">${escapeHtml(query)}</button>`).join("")}</div>
+    <div class="home-search-suggestions"${hasEmptySuggestionCell ? " data-has-empty-cell" : ""}><span>바로 찾기</span>${suggestions.map((query) => `<button type="button" data-search-open data-search-preset-query="${escapeAttr(query)}">${escapeHtml(query)}</button>`).join("")}</div>
   </section>`;
 }
 

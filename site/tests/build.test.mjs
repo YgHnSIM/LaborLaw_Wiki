@@ -302,6 +302,18 @@ test("문서 메타정보 바의 외곽선을 반응형 행에서도 닫는다",
   assert.match(css, /\.page-facts > span:nth-child\(n \+ 3\)\s*\{[^}]*border-top: var\(--rule\);/);
 });
 
+test("모바일 바로 찾기 홀수 격자는 빈 셀의 경계선을 닫는다", async () => {
+  const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
+  assert.match(homeHtml, /class="home-search-suggestions" data-has-empty-cell/);
+
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  const mobileStart = css.indexOf("@media (max-width: 38rem)");
+  const printStart = css.indexOf("@media print", mobileStart);
+  assert.ok(mobileStart >= 0 && printStart > mobileStart, "38rem 모바일 스타일 구간");
+  const mobileCss = css.slice(mobileStart, printStart);
+  assert.match(mobileCss, /\.home-search-suggestions\[data-has-empty-cell\]::after\s*\{[^}]*content:\s*"";[^}]*border-top:\s*var\(--rule\);[^}]*border-left:\s*var\(--rule\);/);
+});
+
 test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   const mobileStart = css.indexOf("@media (max-width: 38rem)");
