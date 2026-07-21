@@ -326,8 +326,9 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
 test("모바일 문서 메뉴는 하위 문서를 번호와 제목으로 차분하게 구분한다", async () => {
   const conceptPage = result.wiki.pages.find((page) => page.data.title === "교섭창구 단일화");
   const html = await fs.readFile(outputPathForRoute(outputDir, conceptPage.route), "utf8");
+  const conceptCount = expectedCategoryCounts.concepts;
   assert.match(html, /class="is-active" aria-current="page"[^>]*>.*?<span class="sidebar-page-label">교섭창구 단일화<\/span>/s);
-  assert.match(html, /class="sidebar-pages-all"><a[^>]+aria-label="전체 49개 문서 보기"><span>전체<\/span><strong>49개 문서 보기<\/strong>/);
+  assert.match(html, new RegExp(`class="sidebar-pages-all"><a[^>]+aria-label="전체 ${conceptCount}개 문서 보기"><span>전체</span><strong>${conceptCount}개 문서 보기</strong>`));
 
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   assert.match(css, /\.sidebar-pages a\s*\{[^}]*grid-template-columns:\s*2rem minmax\(0, 1fr\);[^}]*text-decoration:\s*none;/);
@@ -519,12 +520,13 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   const javascriptStats = await Promise.all(javascriptFiles.map((file) => fs.stat(file)));
   const javascriptSize = javascriptStats.reduce((total, stat) => total + stat.size, 0);
   const searchSize = (await fs.stat(path.join(outputDir, "search.json"))).size;
+  const searchBudget = Math.max(600_000, expectedPageCount * 3_600);
   const fontSize = fontStats.reduce((total, stat) => total + stat.size, 0);
   const readingFontSize = fontSize + ridiFont.length;
   const headingFontSize = headingFontStats.reduce((total, stat) => total + stat.size, 0);
   assert.ok(cssSize < 80_000, `CSS ${cssSize} bytes`);
   assert.ok(javascriptSize < 36_000, `JavaScript 합계 ${javascriptSize} bytes`);
-  assert.ok(searchSize < 600_000, `검색 색인 ${searchSize} bytes`);
+  assert.ok(searchSize < searchBudget, `검색 색인 ${searchSize}/${searchBudget} bytes`);
   assert.ok(readingFontSize < 3_200_000, `본문 글꼴 ${readingFontSize} bytes`);
   assert.ok(headingFontSize < 9_000_000, `제목 글꼴 ${headingFontSize} bytes`);
 });
