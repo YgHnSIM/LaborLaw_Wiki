@@ -13,40 +13,154 @@ function setupBodyFontPicker() {
   });
 }
 
-function setupMobileMenu() {
-  const toggle = document.querySelector("[data-menu-toggle]");
+function setupNavigationDrawers() {
+  const menuToggles = [...document.querySelectorAll("[data-menu-toggle]")];
   const sidebar = document.querySelector("#sidebar");
+  const contextToggles = [...document.querySelectorAll("[data-context-toggle]")];
+  const knowledgeContext = document.querySelector("#knowledge-context");
   const pageFrame = document.querySelector(".page-frame");
   const topbar = document.querySelector(".topbar");
-  const closeButtons = document.querySelectorAll("[data-menu-close]");
-  if (!toggle || !sidebar) return;
-  const mobile = window.matchMedia("(max-width: 58rem)");
+  const menuCloseButtons = [...document.querySelectorAll("[data-menu-close]")];
+  const menuBackdrops = [...document.querySelectorAll(".menu-backdrop")];
+  const contextCloseButtons = [...document.querySelectorAll("[data-context-close]")];
+  const contextBackdrops = [...document.querySelectorAll("[data-context-backdrop]")];
+  if (!sidebar && !knowledgeContext) return;
 
-  const setOpen = (open) => {
-    const mobileOpen = mobile.matches && open;
-    body.classList.toggle("menu-open", open);
-    toggle.setAttribute("aria-expanded", String(open));
-    sidebar.inert = mobile.matches && !mobileOpen;
-    if (mobile.matches && !mobileOpen) sidebar.setAttribute("aria-hidden", "true");
-    else sidebar.removeAttribute("aria-hidden");
-    if (pageFrame) pageFrame.inert = mobileOpen;
-    if (topbar) topbar.inert = mobileOpen;
-    if (mobileOpen) sidebar.querySelector("a, button")?.focus();
-    else if (open) body.classList.remove("menu-open");
-    else toggle.focus({ preventScroll: true });
+  const menuMedia = window.matchMedia("(max-width: 78rem)");
+  const contextMedia = window.matchMedia("(max-width: 58rem)");
+  let menuOpen = false;
+  let contextOpen = false;
+  let menuFocusOrigin = null;
+  let contextFocusOrigin = null;
+
+  const setDrawerHidden = (drawer, hidden) => {
+    if (!drawer) return;
+    drawer.inert = hidden;
+    if (hidden) drawer.setAttribute("aria-hidden", "true");
+    else drawer.removeAttribute("aria-hidden");
   };
 
-  toggle.addEventListener("click", () => setOpen(!body.classList.contains("menu-open")));
-  closeButtons.forEach((button) => button.addEventListener("click", () => setOpen(false)));
-  sidebar.addEventListener("click", (event) => {
-    if (event.target.closest("a") && window.matchMedia("(max-width: 58rem)").matches) setOpen(false);
+  const setExpanded = (toggles, expanded) => {
+    toggles.forEach((toggle) => toggle.setAttribute("aria-expanded", String(expanded)));
+  };
+
+  const setBackdropState = (backdrops, open) => {
+    backdrops.forEach((backdrop) => {
+      backdrop.inert = !open;
+      if (open) backdrop.removeAttribute("aria-hidden");
+      else backdrop.setAttribute("aria-hidden", "true");
+    });
+  };
+
+  const applyDrawerState = () => {
+    if (!menuMedia.matches) menuOpen = false;
+    if (!contextMedia.matches) contextOpen = false;
+    if (menuOpen) contextOpen = false;
+    if (contextOpen) menuOpen = false;
+
+    body.classList.toggle("menu-open", menuOpen);
+    body.classList.toggle("context-open", contextOpen);
+    setExpanded(menuToggles, menuOpen);
+    setExpanded(contextToggles, contextOpen);
+
+    const menuHidden = Boolean(sidebar) && ((menuMedia.matches && !menuOpen) || contextOpen);
+    const contextHidden = Boolean(knowledgeContext) && ((contextMedia.matches && !contextOpen) || menuOpen);
+    setDrawerHidden(sidebar, menuHidden);
+    setDrawerHidden(knowledgeContext, contextHidden);
+    setBackdropState(menuBackdrops, menuOpen);
+    setBackdropState(contextBackdrops, contextOpen);
+
+    const activeDrawer = menuOpen ? sidebar : contextOpen ? knowledgeContext : null;
+    const canInertFrame = activeDrawer && pageFrame && !pageFrame.contains(activeDrawer);
+    if (pageFrame) pageFrame.inert = Boolean(canInertFrame);
+    if (topbar) topbar.inert = Boolean(activeDrawer);
+  };
+
+  const focusDrawer = (drawer, isOpen) => {
+    window.setTimeout(() => {
+      if (!drawer || !isOpen()) return;
+      drawer.querySelector("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])")?.focus();
+    }, 0);
+  };
+
+  const restoreFocus = (element) => {
+    if (!element?.isConnected || typeof element.focus !== "function") return;
+    element.focus({ preventScroll: true });
+  };
+
+  const setMenuOpen = (open, { trigger = null, restore = true } = {}) => {
+    if (!sidebar || !menuMedia.matches) {
+      menuOpen = false;
+      applyDrawerState();
+      return;
+    }
+    if (open) {
+      contextOpen = false;
+      menuOpen = true;
+      menuFocusOrigin = trigger || document.activeElement;
+      applyDrawerState();
+      focusDrawer(sidebar, () => menuOpen);
+      return;
+    }
+
+    const focusOrigin = menuFocusOrigin;
+    const wasOpen = menuOpen;
+    menuOpen = false;
+    applyDrawerState();
+    if (wasOpen && restore) restoreFocus(focusOrigin);
+  };
+
+  const setContextOpen = (open, { trigger = null, restore = true } = {}) => {
+    if (!knowledgeContext || !contextMedia.matches) {
+      contextOpen = false;
+      applyDrawerState();
+      return;
+    }
+    if (open) {
+      menuOpen = false;
+      contextOpen = true;
+      contextFocusOrigin = trigger || document.activeElement;
+      applyDrawerState();
+      focusDrawer(knowledgeContext, () => contextOpen);
+      return;
+    }
+
+    const focusOrigin = contextFocusOrigin;
+    const wasOpen = contextOpen;
+    contextOpen = false;
+    applyDrawerState();
+    if (wasOpen && restore) restoreFocus(focusOrigin);
+  };
+
+  menuToggles.forEach((toggle) => toggle.addEventListener("click", () => {
+    setMenuOpen(!menuOpen, { trigger: toggle });
+  }));
+  contextToggles.forEach((toggle) => toggle.addEventListener("click", () => {
+    setContextOpen(!contextOpen, { trigger: toggle });
+  }));
+  menuCloseButtons.forEach((button) => button.addEventListener("click", () => setMenuOpen(false)));
+  contextCloseButtons.forEach((button) => button.addEventListener("click", () => setContextOpen(false)));
+  contextBackdrops.forEach((backdrop) => backdrop.addEventListener("click", () => setContextOpen(false)));
+
+  sidebar?.addEventListener("click", (event) => {
+    if (event.target.closest("a") && menuMedia.matches) setMenuOpen(false, { restore: false });
+  });
+  knowledgeContext?.addEventListener("click", (event) => {
+    if (event.target.closest("a") && contextMedia.matches) setContextOpen(false, { restore: false });
   });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && body.classList.contains("menu-open")) setOpen(false);
+    if (event.key !== "Escape") return;
+    if (menuOpen) {
+      event.preventDefault();
+      setMenuOpen(false);
+    } else if (contextOpen) {
+      event.preventDefault();
+      setContextOpen(false);
+    }
   });
-  mobile.addEventListener("change", () => setOpen(false));
-  sidebar.inert = mobile.matches;
-  if (mobile.matches) sidebar.setAttribute("aria-hidden", "true");
+  menuMedia.addEventListener("change", applyDrawerState);
+  contextMedia.addEventListener("change", applyDrawerState);
+  applyDrawerState();
 }
 
 function appendHighlightedText(target, value, tokens) {
@@ -668,7 +782,7 @@ function setupEvidenceCitations() {
 }
 
 setupBodyFontPicker();
-setupMobileMenu();
+setupNavigationDrawers();
 setupSearch();
 setupCategoryFilters();
 setupOverflowTables();

@@ -6,8 +6,9 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSite } from "../build.mjs";
-import { outputPathForRoute } from "../lib/wiki.mjs";
+import { outputPathForRoute, siteHref } from "../lib/wiki.mjs";
 import { createMarkdownRenderer, renderMarkdownPage } from "../lib/render-markdown.mjs";
+import { renderPage } from "../templates.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const basePath = "/LaborLaw_Wiki/";
@@ -26,6 +27,18 @@ async function listFiles(directory) {
     else if (entry.isFile()) files.push(fullPath);
   }
   return files;
+}
+
+function knowledgeContextMarkup(html) {
+  const context = html.match(/<aside class="knowledge-context" id="knowledge-context" data-knowledge-context[^>]*>([\s\S]*?)<\/aside>/)?.[1];
+  assert.ok(context, "지식 연결 패널이 생성된다");
+  return context;
+}
+
+function contextGroupMarkup(context, name) {
+  const group = context.match(new RegExp(`<section class="context-group" data-context-group="${name}">([\\s\\S]*?)<\\/section>`))?.[1];
+  assert.ok(group, `${name} 지식 연결 그룹이 생성된다`);
+  return group;
 }
 
 before(async () => {
@@ -63,6 +76,23 @@ test("모든 위키 문서와 링크를 빌드한다", () => {
   for (const [category, count] of Object.entries(expectedCategoryCounts)) {
     assert.equal(result.wiki.groups[category].length, count, category);
   }
+});
+
+test("지식 연결 모델은 직접 링크를 중복·자기참조 없이 역방향까지 계산한다", async () => {
+  for (const page of result.wiki.pages) {
+    const routes = page.outgoingPages.map((target) => target.route);
+    assert.equal(new Set(routes).size, routes.length, `${page.relativePath}: 직접 연결 중복`);
+    assert.ok(!page.outgoingPages.includes(page), `${page.relativePath}: 자기참조 제외`);
+    for (const target of page.outgoingPages) {
+      assert.ok(target.incomingPages.includes(page), `${page.relativePath} → ${target.relativePath}: 역연결`);
+    }
+    for (const reciprocal of page.reciprocalPages) {
+      assert.ok(page.outgoingPages.includes(reciprocal), `${page.relativePath}: 상호 연결의 정방향`);
+      assert.ok(page.incomingPages.includes(reciprocal), `${page.relativePath}: 상호 연결의 역방향`);
+    }
+  }
+  const searchIndex = JSON.parse(await fs.readFile(path.join(outputDir, "search.json"), "utf8"));
+  assert.ok(searchIndex.every((entry) => !Object.hasOwn(entry, "outgoingPages") && !Object.hasOwn(entry, "connectionCounts")), "검색 색인 구조를 유지한다");
 });
 
 test("빌드 출력 경로가 저장소나 상위 디렉터리를 지울 수 없도록 차단한다", async () => {
@@ -339,24 +369,148 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
   assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto;[^}]*padding:\s*0\.65rem 0\.75rem;/);
 });
 
-test("모바일 문서 메뉴는 하위 문서를 번호와 제목으로 차분하게 구분한다", async () => {
-  const conceptPage = result.wiki.pages.find((page) => page.data.title === "교섭창구 단일화");
-  const html = await fs.readFile(outputPathForRoute(outputDir, conceptPage.route), "utf8");
-  const conceptCount = expectedCategoryCounts.concepts;
-  assert.match(html, /class="is-active" aria-current="page"[^>]*>.*?<span class="sidebar-page-label">교섭창구 단일화<\/span>/s);
-  assert.match(html, new RegExp(`class="sidebar-pages-all"><a[^>]+aria-label="전체 ${conceptCount}개 문서 보기"><span>전체</span><strong>${conceptCount}개 문서 보기</strong>`));
+test("전역 탐색과 지식 문맥은 문서 단위 탐색을 분리한다", async () => {
+  const documentPage = result.wiki.pages.find((page) => (
+    page.category !== "meta"
+    && page.category !== "sources"
+    && page.connectionCounts.direct > 0
+    && page.connectionCounts.incoming > 0
+    && page.connectionCounts.evidence > 0
+  ));
+  assert.ok(documentPage, "직접·역·근거 연결을 모두 가진 문서가 있다");
+  const html = await fs.readFile(outputPathForRoute(outputDir, documentPage.route), "utf8");
 
+  const globalMenu = html.match(/<aside class="global-menu" id="sidebar"[^>]*>([\s\S]*?)<\/aside>/)?.[1];
+  assert.ok(globalMenu, "#sidebar.global-menu이 생성된다");
+  assert.match(globalMenu, /class="global-menu-shortcuts"/);
+  assert.match(globalMenu, /class="global-menu-groups"/);
+  assert.doesNotMatch(html, /(?:class|data-[^=]+)="sidebar-pages(?:\s|")/);
+  for (const category of Object.keys(result.wiki.groups)) {
+    assert.match(globalMenu, new RegExp(`href="${basePath}${category}/"`), category);
+  }
+
+  const context = knowledgeContextMarkup(html);
+  assert.match(context, /class="context-current"/);
+  for (const [label, value] of [
+    ["직접 연결", documentPage.connectionCounts.direct],
+    ["역연결", documentPage.connectionCounts.incoming],
+    ["근거", documentPage.connectionCounts.evidence]
+  ]) {
+    assert.match(context, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), label);
+  }
+
+  const toggleCount = documentPage.connectionCounts.direct
+    + documentPage.connectionCounts.incoming
+    + documentPage.connectionCounts.evidence
+    + documentPage.connectionCounts.sourceLineage;
+  assert.match(html, new RegExp(`class="context-trigger"[^>]*data-context-toggle[^>]*aria-controls="knowledge-context"[^>]*aria-expanded="false"[^>]*>[\\s\\S]*?<strong>${toggleCount}<\\/strong>`));
+  assert.match(html, /class="menu-trigger"[^>]*data-menu-toggle[^>]*aria-controls="sidebar"/);
+  assert.match(html, /class="menu-backdrop"[^>]*data-menu-close/);
+  assert.match(html, /class="context-backdrop"[^>]*data-context-backdrop[^>]*data-context-close/);
+  assert.match(html, /<details class="reading-menu">[\s\S]*?<section class="reader-settings"/);
+
+  const sameAreaPage = result.wiki.pages.find((candidate) => candidate !== documentPage && candidate.data.legal_area === documentPage.data.legal_area);
+  assert.ok(sameAreaPage, "같은 법률 영역 문서가 있다");
+  const fallbackPage = {
+    ...documentPage,
+    outgoingPages: [],
+    incomingPages: [],
+    reciprocalPages: [],
+    sourcePages: [],
+    sameAreaPages: [sameAreaPage],
+    connectionCounts: { ...documentPage.connectionCounts, direct: 0, incoming: 0, reciprocal: 0, evidence: 0 }
+  };
+  const fallbackHtml = renderPage({
+    page: fallbackPage,
+    rendered: { contentHtml: "<p>연결 패널 회귀 검사</p>", toc: [] },
+    wiki: result.wiki,
+    basePath,
+    siteUrl: "https://example.test/LaborLaw_Wiki",
+    repositoryUrl: "https://github.com/YgHnSIM/LaborLaw_Wiki",
+    repositoryRef: "0123456789abcdef"
+  });
+  const fallbackContext = knowledgeContextMarkup(fallbackHtml);
+  const sameAreaGroup = contextGroupMarkup(fallbackContext, "same-area");
+  assert.match(sameAreaGroup, /같은 법률 영역/);
+  assert.match(sameAreaGroup, /직접 연결이 없어 같은 영역 문서만 표시합니다./);
+  assert.match(sameAreaGroup, new RegExp(`href="${siteHref(basePath, sameAreaPage.route)}"`));
+  assert.doesNotMatch(context, /data-context-group="same-area"/, "직접 연결이 있으면 같은 영역 보완 목록을 숨긴다");
+});
+
+test("출처·홈·분류의 지식 문맥은 위키 연결 모델을 그대로 요약한다", async () => {
+  const sourcePage = result.wiki.pages.find((page) => page.category === "sources" && page.citedBy.length > 0 && page.relatedSources.length > 0);
+  assert.ok(sourcePage, "인용 및 관련 자료가 있는 출처가 있다");
+  const sourceHtml = await fs.readFile(outputPathForRoute(outputDir, sourcePage.route), "utf8");
+  const sourceContext = knowledgeContextMarkup(sourceHtml);
+  for (const [label, value] of [
+    ["근거 사용", sourcePage.citedBy.length],
+    ["관련 자료", sourcePage.relatedSources.length],
+    ["대체 자료", sourcePage.supersedingSource ? 1 : 0]
+  ]) {
+    assert.match(sourceContext, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), label);
+  }
+  const citedBy = contextGroupMarkup(sourceContext, "cited-by");
+  const relatedSources = contextGroupMarkup(sourceContext, "related-sources");
+  assert.match(citedBy, new RegExp(`data-context-count>${sourcePage.citedBy.length}<\\/span>`));
+  assert.equal((citedBy.match(/class="context-link-title"/g) ?? []).length, sourcePage.citedBy.length);
+  assert.match(relatedSources, new RegExp(`data-context-count>${sourcePage.relatedSources.length}<\\/span>`));
+  assert.equal((relatedSources.match(/class="context-link-title"/g) ?? []).length, sourcePage.relatedSources.length);
+
+  const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
+  const homeContext = knowledgeContextMarkup(homeHtml);
+  const contentPageCount = result.wiki.pages.filter((page) => page.category !== "meta").length;
+  const connections = result.wiki.stats.connections;
+  for (const [label, value] of [
+    ["본문 연결 문서", `${connections.directConnectedPages}/${contentPageCount}`],
+    ["직접 연결", connections.directLinks],
+    ["근거 연결", connections.evidenceLinks],
+    ["본문 링크 없음", connections.directIsolatedPages]
+  ]) {
+    assert.match(homeContext, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), label);
+  }
+
+  const category = "concepts";
+  const categoryHtml = await fs.readFile(path.join(outputDir, category, "index.html"), "utf8");
+  const categoryContext = knowledgeContextMarkup(categoryHtml);
+  const categoryStats = connections.categories[category];
+  for (const [label, value] of [
+    ["문서", result.wiki.groups[category].length],
+    ["직접 연결", categoryStats.directLinks],
+    ["분류 간", categoryStats.crossCategoryLinks],
+    ["본문 링크 없음", categoryStats.directIsolatedPages]
+  ]) {
+    assert.match(categoryContext, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), `${category} ${label}`);
+  }
+  assert.match(categoryHtml, /data-context-toggle[^>]*aria-controls="knowledge-context"/);
+});
+
+test("전역 메뉴와 지식 문맥은 별도 반응형 서랍으로 동작한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
-  assert.match(css, /\.sidebar-pages a\s*\{[^}]*grid-template-columns:\s*1\.75rem minmax\(0, 1fr\);[^}]*text-decoration:\s*none;/);
-  assert.match(css, /\.sidebar-pages a\.is-active\s*\{[^}]*background:\s*var\(--brand-soft\);[^}]*color:\s*var\(--brand\);/);
-  assert.match(css, /\.sidebar-pages \.sidebar-pages-all\s*\{[^}]*position:\s*sticky;[^}]*border-top:\s*1px solid var\(--line-strong\);/);
-  assert.match(css, /\.sidebar-pages \.sidebar-pages-all a\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*space-between;[^}]*background:\s*var\(--canvas\);/);
+  const mediumStart = css.indexOf("@media (max-width: 78rem)");
+  const narrowStart = css.indexOf("@media (max-width: 58rem)", mediumStart);
+  const compactStart = css.indexOf("@media (max-width: 38rem)", narrowStart);
+  assert.ok(mediumStart >= 0 && narrowStart > mediumStart && compactStart > narrowStart, "탐색 서랍 반응형 스타일 구간");
+  const mediumCss = css.slice(mediumStart, narrowStart);
+  const narrowCss = css.slice(narrowStart, compactStart);
+  assert.match(mediumCss, /\.global-menu\s*\{[^}]*display:\s*block;[^}]*transform:\s*translateX\(-105%\);/);
+  assert.match(mediumCss, /\.menu-open \.global-menu\s*\{[^}]*transform:\s*translateX\(0\);/);
+  assert.match(mediumCss, /\.menu-backdrop\s*\{[^}]*display:\s*block;/);
+  assert.match(narrowCss, /\.knowledge-context\s*\{[^}]*border-left:\s*1px solid var\(--line-strong\);[^}]*transform:\s*translateX\(105%\);/);
+  assert.match(narrowCss, /\.context-open \.knowledge-context\s*\{[^}]*transform:\s*translateX\(0\);/);
+  assert.match(narrowCss, /\.context-backdrop\s*\{[^}]*display:\s*block;/);
+  assert.match(narrowCss, /\.reading-menu \.reader-settings\s*\{[^}]*position:\s*fixed;/);
 
-  const mobileStart = css.indexOf("@media (max-width: 58rem)");
-  const compactStart = css.indexOf("@media (max-width: 38rem)", mobileStart);
-  assert.ok(mobileStart >= 0 && compactStart > mobileStart, "58rem 모바일 스타일 구간");
-  const mobileCss = css.slice(mobileStart, compactStart);
-  assert.match(mobileCss, /\.sidebar-pages\s*\{[^}]*max-height:\s*min\(42vh, 22rem\);/);
+  const app = await fs.readFile(path.join(rootDir, "site", "assets", "app.js"), "utf8");
+  assert.match(app, /function setupNavigationDrawers\(\)/);
+  assert.match(app, /querySelectorAll\("\[data-menu-toggle\]"\)/);
+  assert.match(app, /querySelectorAll\("\[data-menu-close\]"\)/);
+  assert.match(app, /querySelectorAll\("\[data-context-toggle\]"\)/);
+  assert.match(app, /querySelectorAll\("\[data-context-close\]"\)/);
+  assert.match(app, /querySelectorAll\("\[data-context-backdrop\]"\)/);
+  assert.match(app, /body\.classList\.toggle\("menu-open", menuOpen\)/);
+  assert.match(app, /body\.classList\.toggle\("context-open", contextOpen\)/);
+  assert.match(app, /if \(menuOpen\) contextOpen = false;/);
+  assert.match(app, /if \(contextOpen\) menuOpen = false;/);
 });
 
 test("다음 문서 제목은 화살표 공간을 확보한다", async () => {
@@ -560,7 +714,7 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   const readingFontSize = fontSize + ridiFont.length;
   const headingFontSize = headingFontStats.reduce((total, stat) => total + stat.size, 0);
   assert.ok(cssSize < 80_000, `CSS ${cssSize} bytes`);
-  assert.ok(javascriptSize < 36_000, `JavaScript 합계 ${javascriptSize} bytes`);
+  assert.ok(javascriptSize < 40_000, `JavaScript 합계 ${javascriptSize} bytes`);
   assert.ok(searchSize < searchBudget, `검색 색인 ${searchSize}/${searchBudget} bytes`);
   assert.ok(readingFontSize < 3_200_000, `본문 글꼴 ${readingFontSize} bytes`);
   assert.ok(headingFontSize < 9_000_000, `제목 글꼴 ${headingFontSize} bytes`);

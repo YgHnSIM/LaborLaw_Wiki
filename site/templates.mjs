@@ -80,22 +80,43 @@ function legalStatusBadge(page) {
   return `<span class="legal-status legal-status-${escapeAttr(page.data.legal_status)} status-tone-${legalStatusTone(page.data.legal_status)}">${escapeHtml(legalStatusLabel(page.data.legal_status))}</span>`;
 }
 
-function renderTopbar({ basePath, repositoryUrl }) {
+function renderReaderSettings() {
+  return `<section class="reader-settings" aria-label="읽기 설정">
+    <label for="body-font-select">본문 글꼴</label>
+    <select id="body-font-select" data-body-font-select>
+      <option value="ridibatang">리디바탕</option>
+      <option value="maruburi">마루부리</option>
+      <option value="system">시스템 바탕</option>
+      <option value="d2coding">D2Coding</option>
+    </select>
+    <small>이 브라우저에 저장</small>
+  </section>`;
+}
+
+function renderTopbar({ basePath, repositoryUrl, currentPage, currentCategory }) {
   const primary = ["concepts", "analyses", "entities", "sources"]
-    .map((category) => `<a href="${siteHref(basePath, `/${category}/`)}">${escapeHtml(CATEGORY_META[category].shortLabel)}</a>`)
+    .map((category) => {
+      const current = currentCategory === category ? ' aria-current="page"' : "";
+      return `<a href="${siteHref(basePath, `/${category}/`)}"${current}>${escapeHtml(CATEGORY_META[category].shortLabel)}</a>`;
+    })
     .join("");
+  const catalogCurrent = currentPage?.route === "/catalog/" ? ' aria-current="page"' : "";
   return `
     <header class="topbar">
       <a class="brand" href="${siteHref(basePath, "/")}" aria-label="대한민국 노동법 위키 홈">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
         <span>대한민국 노동법 위키</span>
       </a>
-      <nav class="topnav" aria-label="주요 분류">${primary}</nav>
+      <nav class="topnav" aria-label="전역 탐색">${primary}<a href="${siteHref(basePath, "/catalog/")}"${catalogCurrent}>전체 색인</a></nav>
       <div class="top-actions">
         <a class="repository-link" href="${escapeAttr(repositoryUrl)}" target="_blank" rel="noopener noreferrer">GitHub 저장소 ${svgIcon("external")}</a>
         <button class="search-trigger" type="button" data-search-open aria-haspopup="dialog" aria-label="문서 검색">
           ${svgIcon("search")}<span>검색</span><kbd>Ctrl K</kbd>
         </button>
+        <details class="reading-menu">
+          <summary aria-label="본문 글꼴 설정"><span aria-hidden="true">Aa</span><span>글꼴</span></summary>
+          ${renderReaderSettings()}
+        </details>
         <button class="menu-trigger" type="button" data-menu-toggle aria-controls="sidebar" aria-expanded="false" aria-label="문서 메뉴">
           ${svgIcon("menu")}<span>메뉴</span>
         </button>
@@ -103,56 +124,164 @@ function renderTopbar({ basePath, repositoryUrl }) {
     </header>`;
 }
 
-function renderSidebar({ wiki, currentPage, currentCategory, basePath }) {
+function renderGlobalMenu({ currentPage, currentCategory, basePath }) {
   const homeActive = currentPage?.route === "/" ? " is-active" : "";
   const catalogActive = currentPage?.route === "/catalog/" ? " is-active" : "";
   const groups = CATEGORY_ORDER.map((category) => {
     const meta = CATEGORY_META[category];
-    const pages = wiki.groups[category];
     const current = currentCategory === category;
-    const currentIndex = currentPage ? pages.indexOf(currentPage) : -1;
-    const visibleStart = Math.max(0, Math.min(currentIndex - 5, pages.length - 11));
-    const visiblePages = currentIndex >= 0 ? pages.slice(visibleStart, visibleStart + 11) : [];
-    const pageList = current && visiblePages.length
-      ? `<ul class="sidebar-pages">${visiblePages.map((page) => {
-          const index = pages.indexOf(page);
-          const active = currentPage?.route === page.route ? ' class="is-active" aria-current="page"' : "";
-          return `<li><a${active} href="${siteHref(basePath, page.route)}"><span class="sidebar-page-index" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span><span class="sidebar-page-label">${escapeHtml(pageLabel(page))}</span></a></li>`;
-        }).join("")}<li class="sidebar-pages-all"><a href="${siteHref(basePath, `/${category}/`)}" aria-label="전체 ${pages.length}개 문서 보기"><span>전체</span><strong>${pages.length}개 문서 보기</strong></a></li></ul>`
-      : "";
-    return `<li class="sidebar-group${current ? " is-current" : ""}">
-      <a class="sidebar-group-link" href="${siteHref(basePath, `/${category}/`)}">
+    return `<li class="global-menu-group${current ? " is-current" : ""}">
+      <a href="${siteHref(basePath, `/${category}/`)}"${current ? ' aria-current="page"' : ""}>
         <span class="nav-number">${meta.number}</span>
-        <span><strong>${escapeHtml(meta.shortLabel)}</strong><small>${pages.length}개 문서</small></span>
+        <span>${escapeHtml(meta.shortLabel)}</span>
       </a>
-      ${pageList}
     </li>`;
   }).join("");
   return `
-    <aside class="sidebar" id="sidebar" aria-label="문서 탐색">
-      <div class="sidebar-head">
-        <span>문서 탐색</span>
+    <aside class="global-menu" id="sidebar" aria-label="전역 탐색">
+      <div class="global-menu-head">
+        <span>전역 탐색</span>
         <button type="button" class="sidebar-close" data-menu-close>${svgIcon("close")}<span class="sr-only">메뉴 닫기</span></button>
       </div>
-      <section class="reader-settings" aria-label="읽기 설정">
-        <label for="body-font-select">본문 글꼴</label>
-        <select id="body-font-select" data-body-font-select>
-          <option value="ridibatang">리디바탕</option>
-          <option value="maruburi">마루부리</option>
-          <option value="system">시스템 바탕</option>
-          <option value="d2coding">D2Coding</option>
-        </select>
-        <small>이 브라우저에 저장</small>
-      </section>
-      <nav>
-        <ul class="sidebar-shortcuts">
+      <nav aria-label="전체 문서 탐색">
+        <ul class="global-menu-shortcuts">
           <li><a class="${homeActive.trim()}" href="${siteHref(basePath, "/")}"><span class="nav-number">00</span><span>개요</span></a></li>
           <li><a class="${catalogActive.trim()}" href="${siteHref(basePath, "/catalog/")}"><span class="nav-number">06</span><span>전체 색인</span></a></li>
         </ul>
-        <ol class="sidebar-groups">${groups}</ol>
+        <ol class="global-menu-groups">${groups}</ol>
       </nav>
     </aside>
     <button class="menu-backdrop" type="button" data-menu-close tabindex="-1" aria-label="메뉴 닫기"></button>`;
+}
+
+function contextStatus(page) {
+  return `<small class="context-status status-tone-${pageStatusTone(page.data.status)}">${escapeHtml(statusLabel(page.data.status))}</small>`;
+}
+
+function renderContextPageLink(page, basePath) {
+  return `<a href="${siteHref(basePath, page.route)}"><span class="context-link-type">${escapeHtml(CATEGORY_META[page.category].shortLabel)}</span><span class="context-link-title">${escapeHtml(pageLabel(page))}</span>${contextStatus(page)}</a>`;
+}
+
+function renderContextPageGroup(label, pages, basePath, groupName, { empty = "", limit = 5, note = "" } = {}) {
+  if (!pages.length) return empty ? `<p class="context-empty" data-context-group="${escapeAttr(groupName)}">${escapeHtml(empty)}</p>` : "";
+  const visible = pages.slice(0, limit);
+  const hidden = pages.slice(limit);
+  return `<section class="context-group" data-context-group="${escapeAttr(groupName)}">
+    <h2>${escapeHtml(label)}<span data-context-count>${pages.length}</span></h2>
+    ${note ? `<p class="context-group-note">${escapeHtml(note)}</p>` : ""}
+    <ul>${visible.map((page) => `<li>${renderContextPageLink(page, basePath)}</li>`).join("")}${hidden.length ? `<li class="context-overflow"><details><summary>${hidden.length}개 더 보기</summary><ul>${hidden.map((page) => `<li>${renderContextPageLink(page, basePath)}</li>`).join("")}</ul></details></li>` : ""}</ul>
+  </section>`;
+}
+
+function renderContextCategoryGroup(label, counts, basePath, groupName) {
+  const entries = Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .sort(([leftCategory], [rightCategory]) => CATEGORY_ORDER.indexOf(leftCategory) - CATEGORY_ORDER.indexOf(rightCategory));
+  if (!entries.length) return "";
+  return `<section class="context-group" data-context-group="${escapeAttr(groupName)}">
+    <h2>${escapeHtml(label)}<span data-context-count>${entries.reduce((sum, [, count]) => sum + count, 0)}</span></h2>
+    <ul>${entries.map(([category, count]) => `<li><a href="${siteHref(basePath, `/${category}/`)}"><span class="context-link-type">${escapeHtml(CATEGORY_META[category].number)}</span><span class="context-link-title">${escapeHtml(CATEGORY_META[category].shortLabel)}</span><strong>${count}</strong></a></li>`).join("")}</ul>
+  </section>`;
+}
+
+function renderContextSummary(items) {
+  return `<dl class="context-summary context-summary-${items.length}">${items.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
+}
+
+function sortContextPages(pages) {
+  return [...pages].sort((left, right) => collator.compare(left.data.title, right.data.title));
+}
+
+function renderDocumentContext(page, basePath) {
+  const reciprocalRoutes = new Set(page.reciprocalPages.map((candidate) => candidate.route));
+  const outgoing = page.outgoingPages.filter((candidate) => !reciprocalRoutes.has(candidate.route));
+  const incoming = page.incomingPages.filter((candidate) => !reciprocalRoutes.has(candidate.route));
+  const hasDirectRelation = page.outgoingPages.length || page.incomingPages.length;
+  const sourceLineage = [
+    ...page.relatedSources,
+    ...(page.supersedingSource ? [page.supersedingSource] : [])
+  ];
+  const sourceGroups = page.category === "sources"
+    ? `${renderContextPageGroup("이 자료를 근거로 사용하는 문서", page.citedBy, basePath, "cited-by")}
+      ${renderContextPageGroup("직접 관련 자료", page.relatedSources, basePath, "related-sources")}
+      ${renderContextPageGroup("대체 자료", page.supersedingSource ? [page.supersedingSource] : [], basePath, "superseding-source")}`
+    : renderContextPageGroup("근거 출처", page.sourcePages, basePath, "evidence");
+  const fallback = !hasDirectRelation
+    ? renderContextPageGroup("같은 법률 영역", page.sameAreaPages.slice(0, 3), basePath, "same-area", {
+      empty: page.data.legal_area ? "직접 연결이 없어 같은 영역 문서만 표시합니다." : "직접 연결이 아직 없습니다.",
+      note: "직접 연결이 없어 같은 영역 문서만 표시합니다."
+    })
+    : "";
+  const summary = page.category === "sources"
+    ? [["근거 사용", page.citedBy.length], ["관련 자료", page.relatedSources.length], ["대체 자료", page.supersedingSource ? 1 : 0]]
+    : [["직접 연결", page.connectionCounts.direct], ["역연결", page.connectionCounts.incoming], ["근거", page.connectionCounts.evidence]];
+  return `<div class="context-current"><span>${escapeHtml(CATEGORY_META[page.category].shortLabel)}</span><strong>${escapeHtml(page.data.title)}</strong>${contextStatus(page)}</div>
+    ${renderContextSummary(summary)}
+    <nav class="context-groups" aria-label="${escapeAttr(page.data.title)}의 지식 연결">
+      ${renderContextPageGroup("상호 연결", page.reciprocalPages, basePath, "reciprocal")}
+      ${renderContextPageGroup("직접 연결", outgoing, basePath, "outgoing")}
+      ${renderContextPageGroup("이 문서를 연결한 문서", incoming, basePath, "incoming")}
+      ${sourceGroups}
+      ${sourceLineage.length && page.category !== "sources" ? renderContextPageGroup("출처 계보", sourceLineage, basePath, "source-lineage") : ""}
+      ${fallback}
+    </nav>`;
+}
+
+function renderOverviewContext(wiki, basePath, { category = null } = {}) {
+  const connections = wiki.stats.connections;
+  const pages = category ? wiki.groups[category] : wiki.pages.filter((page) => page.category !== "meta");
+  const categoryStats = category ? connections.categories[category] : null;
+  const isolated = pages.filter((page) => page.category !== "meta" && !page.outgoingPages.length && !page.incomingPages.length);
+  const targetCounts = category
+    ? categoryStats.targetCategories
+    : pages.reduce((counts, page) => {
+      for (const target of page.outgoingPages) {
+        if (target.category === "meta" || target.category === page.category) continue;
+        counts[target.category] = (counts[target.category] ?? 0) + 1;
+      }
+      return counts;
+    }, {});
+  const title = category ? `${CATEGORY_META[category].shortLabel} 연결 상태` : "위키 연결 상태";
+  const summary = category
+    ? [["문서", pages.length], ["직접 연결", categoryStats.directLinks], ["분류 간", categoryStats.crossCategoryLinks], ["본문 링크 없음", categoryStats.directIsolatedPages]]
+    : [["본문 연결 문서", `${connections.directConnectedPages}/${pages.length}`], ["직접 연결", connections.directLinks], ["근거 연결", connections.evidenceLinks], ["본문 링크 없음", connections.directIsolatedPages]];
+  return `<div class="context-current"><span>${category ? escapeHtml(CATEGORY_META[category].shortLabel) : "지식베이스"}</span><strong>${escapeHtml(title)}</strong></div>
+    ${renderContextSummary(summary)}
+    <nav class="context-groups" aria-label="${escapeAttr(title)}">
+      ${renderContextCategoryGroup("연결 대상 분류", targetCounts, basePath, "target-categories")}
+      ${renderContextPageGroup("연결 보강 필요", sortContextPages(isolated), basePath, "isolated", { empty: "연결 보강이 필요한 문서가 없습니다." })}
+    </nav>`;
+}
+
+function contextConnectionCount({ wiki, currentPage, currentCategory }) {
+  if (currentPage && currentPage.category !== "meta") {
+    return currentPage.connectionCounts.direct
+      + currentPage.connectionCounts.incoming
+      + currentPage.connectionCounts.evidence
+      + currentPage.connectionCounts.sourceLineage;
+  }
+  if (currentCategory && currentCategory !== "meta") {
+    const stats = wiki.stats.connections.categories[currentCategory];
+    return stats.directLinks + stats.evidenceLinks;
+  }
+  return wiki.stats.connections.directLinks + wiki.stats.connections.evidenceLinks;
+}
+
+function renderContextToggle(context) {
+  const count = contextConnectionCount(context);
+  return `<button class="context-trigger" type="button" data-context-toggle aria-controls="knowledge-context" aria-expanded="false"><span>지식 연결</span><strong>${count}</strong></button>`;
+}
+
+function renderKnowledgeContext({ wiki, currentPage, currentCategory, basePath }) {
+  const useDocumentContext = currentPage && currentPage.category !== "meta";
+  const contextContent = useDocumentContext
+    ? renderDocumentContext(currentPage, basePath)
+    : renderOverviewContext(wiki, basePath, { category: currentCategory && currentCategory !== "meta" ? currentCategory : null });
+  return `<aside class="knowledge-context" id="knowledge-context" data-knowledge-context aria-label="지식 연결">
+    <header class="knowledge-context-head"><span>지식 연결</span><button type="button" class="context-close" data-context-close>${svgIcon("close")}<span class="sr-only">지식 연결 닫기</span></button></header>
+    <div class="knowledge-context-body">${contextContent}</div>
+  </aside>
+  <button class="context-backdrop" type="button" data-context-backdrop data-context-close tabindex="-1" aria-label="지식 연결 닫기"></button>`;
 }
 
 function renderSearchDialog(basePath) {
@@ -460,8 +589,9 @@ function renderShell({ wiki, page = null, currentCategory, title, description, c
   <head>${renderHead({ title, description, canonical, basePath, page, siteName, siteUrl, pageKind, noindex })}</head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
-    ${renderTopbar({ basePath, repositoryUrl })}
-    ${renderSidebar({ wiki, currentPage: page, currentCategory, basePath })}
+    ${renderTopbar({ basePath, repositoryUrl, currentPage: page, currentCategory })}
+    ${renderGlobalMenu({ currentPage: page, currentCategory, basePath })}
+    ${renderKnowledgeContext({ wiki, currentPage: page, currentCategory, basePath })}
     <div class="page-frame">${main}${renderFooter({ basePath, stats: wiki.stats })}</div>
     ${renderSearchDialog(basePath)}
     <script type="module" src="${siteHref(basePath, "/assets/app.js")}"></script>
@@ -499,13 +629,16 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
         <div class="article-evidence-trust page-hero-trust">${renderEvidenceStrip(page)}</div>
       </div>
     </header>`;
+  const contextToggle = renderContextToggle({ wiki, currentPage: page, currentCategory: page.category });
   const main = `<main id="main-content" class="main-content">
     ${breadcrumbs}
     ${isHome ? `<section class="home-lead" aria-label="위키 개요">${hero}${renderHomeStats(wiki, basePath)}</section>` : hero}
     ${isHome ? renderHomeSearch(basePath) : ""}
+    ${isHome ? contextToggle : ""}
     ${isHome ? renderAreaDashboard(wiki) : ""}
     ${isHome ? renderHomeCollections(wiki, basePath) : ""}
     ${renderStatusNotice(page)}
+    ${isHome ? "" : contextToggle}
     ${renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef })}
     ${renderEvidencePanel(page, basePath)}
     ${renderCitedBy(page, basePath)}
@@ -550,6 +683,7 @@ export function renderCategoryPage({ category, wiki, basePath, siteUrl, reposito
   const main = `<main id="main-content" class="main-content category-main">
     <nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span>/</span><span>${escapeHtml(meta.shortLabel)}</span></nav>
     <header class="category-hero"><span class="category-number" aria-hidden="true">${meta.number}</span><div><p>${pages.length}개 문서</p><h1>${escapeHtml(meta.shortLabel)}</h1><p>${escapeHtml(meta.description)}</p><p class="category-maturity">활성 ${statusCounts.active ?? 0} · 초안 ${statusCounts.draft ?? 0} · 검토 ${statusCounts.review ?? 0}</p></div></header>
+    ${renderContextToggle({ wiki, currentPage: null, currentCategory: category })}
     <div class="category-controls" data-category-filters>
       <p role="status" aria-live="polite" aria-atomic="true"><strong data-category-count>${pages.length}</strong>개 문서 표시</p>
       <label><span>상태</span><select data-category-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>

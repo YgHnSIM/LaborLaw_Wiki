@@ -262,7 +262,18 @@ export async function loadWiki(rootDir) {
       supportingSourceCount: 0,
       citedBy: [],
       relatedSources: [],
-      supersedingSource: null
+      supersedingSource: null,
+      outgoingPages: [],
+      incomingPages: [],
+      reciprocalPages: [],
+      sameAreaPages: [],
+      connectionCounts: {
+        direct: 0,
+        incoming: 0,
+        reciprocal: 0,
+        evidence: 0,
+        sourceLineage: 0
+      }
     });
   }
 
@@ -305,12 +316,17 @@ export async function loadWiki(rootDir) {
       page.supersedingSource = sourcesById.get(page.data.superseded_by);
       if (!page.supersedingSource) throw new Error(`${page.relativePath}: 존재하지 않는 superseded_by ${page.data.superseded_by}`);
     }
+    const outgoingByRoute = new Map();
     for (const link of page.wikiLinks) {
       if (!link.target) continue;
-      if (!lookup.has(normalizeLookup(link.target))) {
+      const target = lookup.get(normalizeLookup(link.target));
+      if (!target) {
         throw new Error(`${page.relativePath}: 해소되지 않는 위키링크 ${link.raw}`);
       }
+      if (target !== page) outgoingByRoute.set(target.route, target);
     }
+    page.outgoingPages = [...outgoingByRoute.values()];
+    for (const target of page.outgoingPages) target.incomingPages.push(page);
   }
 
   const collator = new Intl.Collator("ko-KR", { numeric: true, sensitivity: "base" });
@@ -318,7 +334,26 @@ export async function loadWiki(rootDir) {
     category,
     pages.filter((page) => page.category === category).sort((a, b) => collator.compare(a.data.title, b.data.title))
   ]));
-  for (const page of pages) page.citedBy.sort((a, b) => collator.compare(a.data.title, b.data.title));
+  for (const page of pages) {
+    const byTitle = (a, b) => collator.compare(a.data.title, b.data.title);
+    page.citedBy.sort(byTitle);
+    page.outgoingPages.sort(byTitle);
+    page.incomingPages.sort(byTitle);
+    const outgoingRoutes = new Set(page.outgoingPages.map((target) => target.route));
+    page.reciprocalPages = page.incomingPages.filter((source) => outgoingRoutes.has(source.route));
+    page.sameAreaPages = page.data.legal_area
+      ? pages
+        .filter((candidate) => candidate !== page && candidate.data.legal_area === page.data.legal_area)
+        .sort(byTitle)
+      : [];
+    page.connectionCounts = {
+      direct: page.outgoingPages.length,
+      incoming: page.incomingPages.length,
+      reciprocal: page.reciprocalPages.length,
+      evidence: page.sourcePages.length,
+      sourceLineage: page.relatedSources.length + (page.supersedingSource ? 1 : 0)
+    };
+  }
 
   const statusCounts = pages.reduce((counts, page) => {
     counts[page.data.status] = (counts[page.data.status] ?? 0) + 1;
@@ -328,6 +363,37 @@ export async function loadWiki(rootDir) {
   const contentPages = pages.filter((page) => page.category !== "meta");
   const latestContentUpdated = contentPages.map((page) => page.data.updated).filter(Boolean).sort().at(-1) ?? "";
   const knowledgeAsOf = contentPages.map((page) => page.data.as_of_date).filter(Boolean).sort().at(-1) ?? "";
+  const hasKnowledgeConnection = (page) => page.outgoingPages.length
+    || page.incomingPages.length
+    || page.sourcePages.length
+    || page.citedBy.length
+    || page.relatedSources.length
+    || page.supersedingSource;
+  const hasDirectDocumentConnection = (page) => page.outgoingPages.length || page.incomingPages.length;
+  const categoryConnectionStats = Object.fromEntries(CATEGORY_ORDER.map((category) => {
+    const categoryPages = groups[category];
+    const directLinks = categoryPages.reduce((sum, page) => sum + page.outgoingPages.length, 0);
+    const crossCategoryLinks = categoryPages.reduce((sum, page) => sum + page.outgoingPages.filter((target) => target.category !== category).length, 0);
+    const evidenceLinks = categoryPages.reduce((sum, page) => sum + page.sourcePages.length, 0);
+    const isolatedPages = categoryPages.filter((page) => !hasKnowledgeConnection(page)).length;
+    const directIsolatedPages = categoryPages.filter((page) => !hasDirectDocumentConnection(page)).length;
+    const targetCategories = categoryPages.reduce((counts, page) => {
+      for (const target of page.outgoingPages) {
+        if (target.category === category) continue;
+        counts[target.category] = (counts[target.category] ?? 0) + 1;
+      }
+      return counts;
+    }, {});
+    return [category, { directLinks, crossCategoryLinks, evidenceLinks, isolatedPages, directIsolatedPages, targetCategories }];
+  }));
+  const directLinks = contentPages.reduce((sum, page) => sum + page.outgoingPages.length, 0);
+  const evidenceLinks = contentPages.reduce((sum, page) => sum + page.sourcePages.length, 0);
+  const sourceLineageLinks = groups.sources.reduce((sum, page) => sum + page.relatedSources.length + (page.supersedingSource ? 1 : 0), 0);
+  const connectedPages = contentPages.filter(hasKnowledgeConnection).length;
+  const isolatedPages = contentPages.length - connectedPages;
+  const directConnectedPages = contentPages.filter(hasDirectDocumentConnection).length;
+  const directIsolatedPages = contentPages.length - directConnectedPages;
+  const crossCategoryLinks = contentPages.reduce((sum, page) => sum + page.outgoingPages.filter((target) => target.category !== page.category).length, 0);
 
   return {
     pages,
@@ -344,7 +410,18 @@ export async function loadWiki(rootDir) {
       statuses: statusCounts,
       latestUpdated,
       latestContentUpdated,
-      knowledgeAsOf
+      knowledgeAsOf,
+      connections: {
+        directLinks,
+        evidenceLinks,
+        sourceLineageLinks,
+        connectedPages,
+        isolatedPages,
+        directConnectedPages,
+        directIsolatedPages,
+        crossCategoryLinks,
+        categories: categoryConnectionStats
+      }
     }
   };
 }
