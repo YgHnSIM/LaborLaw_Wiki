@@ -13,7 +13,7 @@ import {
   statusLabel
 } from "./lib/wiki.mjs";
 import { createMarkdownRenderer, renderMarkdownPage } from "./lib/render-markdown.mjs";
-import { renderCategoryPage, renderNotFound, renderPage } from "./templates.mjs";
+import { renderCatalogPage, renderCategoryPage, renderNotFound, renderPage } from "./templates.mjs";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRoot = path.resolve(moduleDir, "..");
@@ -165,7 +165,9 @@ export async function buildSite(options = {}) {
   await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"));
 
   await Promise.all(renderedPages.map(async ({ page, rendered }) => {
-    const html = renderPage({ page, rendered, wiki, basePath, siteUrl, repositoryUrl, repositoryRef });
+    const html = page.route === "/catalog/"
+      ? renderCatalogPage({ page, wiki, basePath, siteUrl, repositoryUrl })
+      : renderPage({ page, rendered, wiki, basePath, siteUrl, repositoryUrl, repositoryRef });
     if (/\[\[[^\]]+\]\]/.test(html)) throw new Error(`${page.relativePath}: 렌더링 후 위키링크가 남았습니다.`);
     if (/<blockquote[^>]*>\s*<p>\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.test(html)) {
       throw new Error(`${page.relativePath}: 렌더링 후 콜아웃 표식이 남았습니다.`);

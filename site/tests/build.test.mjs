@@ -6,7 +6,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSite } from "../build.mjs";
-import { outputPathForRoute } from "../lib/wiki.mjs";
+import { outputPathForRoute, siteHref } from "../lib/wiki.mjs";
 import { createMarkdownRenderer, renderMarkdownPage } from "../lib/render-markdown.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -39,10 +39,36 @@ async function listFiles(directory) {
   return files;
 }
 
-function researchContextMarkup(html) {
-  const context = html.match(/<aside\b(?=[^>]*\bid="knowledge-context")(?=[^>]*\bclass="[^"]*\bresearch-context\b[^"]*")(?=[^>]*\bdata-knowledge-context\b)[^>]*>([\s\S]*?)<\/aside>/)?.[1];
-  assert.ok(context, "연구 문맥 패널이 생성된다");
-  return context;
+const VOID_HTML_ELEMENTS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
+]);
+
+function directSearchDialogChildren(html) {
+  const dialog = html.match(/<dialog\b(?=[^>]*\bid="search-dialog")[^>]*>/);
+  assert.ok(dialog?.index !== undefined, "검색 대화상자가 생성된다");
+
+  const tagPattern = /<\/?([A-Za-z][\w:-]*)(?:\s[^<>]*)?>/g;
+  tagPattern.lastIndex = dialog.index + dialog[0].length;
+  const children = [];
+  let depth = 0;
+
+  for (let match = tagPattern.exec(html); match; match = tagPattern.exec(html)) {
+    const opening = !match[0].startsWith("</");
+    const name = match[1].toLowerCase();
+    if (!opening) {
+      if (depth === 0 && name === "dialog") break;
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth === 0) children.push({ name, opening: match[0], start: match.index, end: tagPattern.lastIndex });
+    if (!VOID_HTML_ELEMENTS.has(name) && !match[0].endsWith("/>")) depth += 1;
+  }
+  return children;
+}
+
+function attributeValue(openingTag, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return openingTag.match(new RegExp(`\\b${escapedName}=(?:"([^"]*)"|'([^']*)')`))?.slice(1).find(Boolean) ?? null;
 }
 
 function researchMembershipShape(memberships) {
@@ -253,23 +279,47 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
     assert.match(html, /href="https:\/\/example\.test\/LaborLaw_Wiki\//);
     assert.match(html, /data-design="legal-editorial"/);
     assert.match(html, /<meta name="theme-color" content="#2547D0">/);
+    assert.match(html, /<div class="page-frame">/);
+    assert.doesNotMatch(html, /class="page-frame page-frame-wide"/);
+    assert.doesNotMatch(html, /class="[^"]*\b(?:nav-number|category-number|page-folio|dialog-number|record-number|card-index)\b[^"]*"/);
+    assert.doesNotMatch(html, /class="page-summary"/);
+    assert.doesNotMatch(html, /(?:data-research-context|data-context-toggle|id="knowledge-context"|class="context-trigger")/);
     if (page.route === "/") {
       const workbenchStart = html.indexOf('class="research-workbench"');
       const article = html.match(/<article class="prose home-description">([\s\S]*?)<\/article>/)?.[1];
       assert.ok(article, "홈 설명 본문");
       assert.ok(workbenchStart >= 0, "홈은 리서치 워크벤치로 시작한다");
-      assert.match(html, /class="research-intro"/);
+      assert.match(html, /class="research-workbench-head"/);
+      assert.match(html, /class="research-workbench-copy"/);
       assert.match(html, /class="research-search"/);
-      assert.match(html, /class="research-trust-ribbon"/);
+      assert.match(html, /class="research-meta"/);
       assert.match(html, /class="research-desk"/);
-      assert.match(html, /class="research-queue"/);
+      assert.doesNotMatch(html, /class="research-intro"/);
+      assert.doesNotMatch(html, /class="research-trust-ribbon"/);
+      assert.doesNotMatch(html, /class="research-queue"/);
       assert.match(html, /<details class="home-about">/);
       assert.match(article, /<h2[^>]*>기준일과 현재 상태/);
       assert.doesNotMatch(html, /class="breadcrumbs"/);
       assert.doesNotMatch(html, /class="page-toc"/);
       assert.doesNotMatch(html, /class="mobile-toc"/);
       assert.doesNotMatch(html, /data-research-context/);
+    } else if (page.route === "/catalog/") {
+      assert.match(html, /class="main-content main-content--category category-main catalog-main"/);
+      assert.match(html, /class="category-shell"/);
+      assert.match(html, /<header class="category-hero">/);
+      assert.match(html, /data-catalog-filters/);
+      assert.match(html, /class="catalog-group-head"/);
+      assert.doesNotMatch(html, /class="document-shell"/);
+      assert.doesNotMatch(html, /<header class="article-hero">/);
+      assert.doesNotMatch(html, /class="document-compact-meta"/);
+      assert.doesNotMatch(html, /class="page-toc"/);
+      assert.doesNotMatch(html, /class="mobile-toc"/);
+      assert.doesNotMatch(html, /<aside class="document-rail"/);
     } else {
+      assert.match(html, /class="main-content main-content--document"/);
+      assert.match(html, /class="document-shell"/);
+      assert.match(html, /<header class="article-hero">/);
+      assert.match(html, /class="document-compact-meta"/);
       assert.match(html, /class="page-toc"/);
       assert.match(html, /class="mobile-toc"/);
       assert.match(html, /<aside class="document-rail"/);
@@ -285,6 +335,31 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
     assert.match(html, /data-search-filter-reset disabled>필터 초기화<\/button>/);
     assert.match(html, /data-search-filter-done>결과 보기<\/button>/);
   }
+});
+
+test("전체 색인은 기존 섹션 링크를 보존한 분류형 카탈로그로 생성한다", async () => {
+  const catalogPage = result.wiki.pages.find((page) => page.route === "/catalog/");
+  const html = await fs.readFile(outputPathForRoute(outputDir, catalogPage.route), "utf8");
+  const expectedLinks = result.wiki.pages
+    .filter((page) => page.route !== "/catalog/")
+    .map((page) => siteHref(basePath, page.route))
+    .sort();
+  const catalogLinks = [...html.matchAll(/data-catalog-card[\s\S]*?<a href="([^"]+)"/g)]
+    .map((match) => match[1])
+    .sort();
+
+  assert.deepEqual(catalogLinks, expectedLinks);
+  assert.equal(new Set(catalogLinks).size, catalogLinks.length, "각 문서는 색인에 한 번만 출력된다");
+  assert.equal((html.match(/data-catalog-group(?:\s|=|>)/g) ?? []).length, 6);
+  for (const anchor of ["홈", "메타", "소스", "개념", "개체", "분석", "관련-항목"]) {
+    assert.match(html, new RegExp(`id="${anchor}"`), anchor);
+  }
+  assert.match(html, /data-catalog-category/);
+  assert.match(html, /data-catalog-status/);
+  assert.match(html, /data-catalog-area/);
+  assert.match(html, /data-catalog-count/);
+  assert.match(html, /<h3>/);
+  assert.match(html, /class="document-category"/);
 });
 
 test("생성된 모든 내부 링크 대상이 존재한다", async () => {
@@ -441,15 +516,26 @@ test("문서 레일은 신뢰정보와 의미 상태를 본문에서 분리해 �
   const html = await fs.readFile(outputPathForRoute(outputDir, legalStatusPage.route), "utf8");
   const documentRailStart = html.indexOf('class="document-rail"');
   const articleStart = html.indexOf('<article class="prose"');
-  assert.ok(documentRailStart >= 0 && articleStart > documentRailStart, "신뢰 레일은 본문보다 앞에 생성된다");
+  assert.ok(articleStart >= 0 && documentRailStart > articleStart, "본문 뒤에 독립 문서 레일이 생성된다");
   const trustStart = html.indexOf('class="article-evidence-trust"', documentRailStart);
-  assert.ok(trustStart > documentRailStart && trustStart < articleStart, "신뢰 정보는 문서 레일에 있다");
+  assert.ok(trustStart > documentRailStart, "신뢰 정보는 문서 레일 안에 있다");
   assert.match(html, /class="article-evidence-trust"><dl class="page-facts evidence-strip"/);
   assert.match(html, /class="legal-status legal-status-[a-z]+ status-tone-(?:current|muted|warning)"/);
   assert.match(css, /\.page-facts\.evidence-strip\s*\{[^}]*display:\s*grid;[^}]*border:\s*1px solid var\(--line\);/);
   assert.match(css, /\.status-tone-current[\s\S]*?color:\s*var\(--active\);/);
   assert.match(css, /\.status-tone-review[\s\S]*?color:\s*var\(--review\);/);
   assert.match(css, /\.status-tone-warning[\s\S]*?color:\s*var\(--danger\);/);
+  const reviewPage = result.wiki.pages.find((page) => page.route !== "/" && page.data.status === "review");
+  const reviewHtml = await fs.readFile(outputPathForRoute(outputDir, reviewPage.route), "utf8");
+  const heroStart = reviewHtml.indexOf('<header class="article-hero">');
+  const heroEnd = reviewHtml.indexOf("</header>", heroStart);
+  const heroHtml = reviewHtml.slice(heroStart, heroEnd);
+  assert.ok(heroStart >= 0 && heroEnd > heroStart, "문서 히어로가 생성된다");
+  assert.match(heroHtml, /class="article-hero-meta document-status-row"/);
+  assert.match(heroHtml, /class="status-notice[^\"]*"/);
+  assert.doesNotMatch(heroHtml, /page-facts evidence-strip/, "상세 신뢰정보는 히어로가 아니라 문서 레일에 둔다");
+  assert.equal((reviewHtml.match(/class="[^\"]*\bstatus-notice\b[^\"]*"/g) ?? []).length, 1, "상태 알림은 히어로에 한 번만 둔다");
+  assert.match(css, /\.article-hero::before\s*\{[^}]*background:\s*var\(--brand\);/);
 });
 
 test("홈의 리서치 검색은 기존 검색 프리셋으로 바로 찾기를 제공한다", async () => {
@@ -469,7 +555,7 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
   assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto;[^}]*padding:\s*0\.65rem 0\.75rem;/);
 });
 
-test("연구 데스크는 전역 탐색·문서 문맥·본문/근거 레일을 분리한다", async () => {
+test("연구 데스크는 전역 탐색과 본문·근거 레일을 분리한다", async () => {
   const documentPage = result.wiki.pages.find((page) => (
     page.category !== "meta"
     && page.category !== "sources"
@@ -488,57 +574,69 @@ test("연구 데스크는 전역 탐색·문서 문맥·본문/근거 레일을 
     assert.match(globalMenu, new RegExp(`href="${basePath}${category}/"`), category);
   }
 
-  const context = researchContextMarkup(html);
-  assert.match(html, /data-research-context/);
-  assert.doesNotMatch(context, /data-context-group=/, "기존 연결 그룹 대신 연구 문맥을 사용한다");
-  assert.match(html, /class="context-trigger"[^>]*data-context-toggle[^>]*aria-controls="knowledge-context"[^>]*aria-expanded="false"/);
+  assert.doesNotMatch(html, /(?:data-research-context|data-context-toggle|id="knowledge-context"|class="context-trigger")/);
   assert.match(html, /class="menu-trigger"[^>]*data-menu-toggle[^>]*aria-controls="sidebar"/);
   assert.match(html, /class="menu-backdrop"[^>]*data-menu-close/);
-  assert.match(html, /class="context-backdrop"[^>]*data-context-backdrop[^>]*data-context-close/);
   assert.match(html, /<details class="reading-menu">[\s\S]*?<section class="reader-settings"/);
 
   assert.match(html, /<article class="[^"]*\bprose\b[^"]*"[^>]*data-reading-article/);
   const documentRailStart = html.indexOf('class="document-rail"');
-  const articleStart = html.indexOf('<article class="prose"', documentRailStart);
+  const articleStart = html.indexOf('<article class="prose"');
   assert.ok(documentRailStart >= 0, "문서 우측 레일이 생성된다");
+  assert.ok(articleStart >= 0 && documentRailStart > articleStart, "문서 레일은 본문과 분리된 뒤쪽 열에 생성된다");
   assert.ok(html.indexOf('class="article-evidence-trust"', documentRailStart) > documentRailStart, "신뢰 정보는 문서 레일에 들어간다");
   assert.ok(html.indexOf('class="page-toc"', documentRailStart) > documentRailStart, "데스크톱 목차는 문서 레일에 들어간다");
-  assert.ok(html.indexOf('class="article-evidence-trust"', documentRailStart) < articleStart, "신뢰 정보는 실본문과 분리된다");
-  assert.ok(html.indexOf('class="page-toc"', documentRailStart) < articleStart, "데스크톱 목차는 실본문과 분리된다");
   assert.ok(html.indexOf('class="evidence-panel"', articleStart) > articleStart, "근거 상세와 인용 앵커는 본문 뒤에서도 유지된다");
   assert.match(html, /<details class="mobile-toc" data-mobile-toc>/);
   assert.match(html, /data-toc-link/);
 });
 
-test("홈·문서·분류는 연구 데스크 훅을 배치하고 검색 계약과 분리한다", async () => {
+test("홈은 연구 데스크를 유지하고 문서·분류의 쟁점 패널은 출력하지 않는다", async () => {
   const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
   assert.match(homeHtml, /class="[^"]*\bresearch-workbench\b[^"]*"/);
   assert.match(homeHtml, /data-issue-tabs/);
-  assert.equal((homeHtml.match(/\bdata-issue-select\b/g) ?? []).length, result.wiki.researchIssues.length, "홈 탭 수는 쟁점 등록부 수와 같다");
-  assert.equal((homeHtml.match(/\bdata-issue-panel\b/g) ?? []).length, result.wiki.researchIssues.length, "홈 패널 수는 쟁점 등록부 수와 같다");
+  const desktopIssueTabs = [...homeHtml.matchAll(/<button\b[^>]*\bdata-issue-select(?:\s|=|>)[^>]*>/g)].map((match) => match[0]);
+  const issuePanels = [...homeHtml.matchAll(/<section\b[^>]*\bdata-issue-panel\b[^>]*>/g)].map((match) => match[0]);
+  assert.equal(desktopIssueTabs.length, result.wiki.researchIssues.length, "데스크톱 쟁점 탭 수는 등록부 수와 같다");
+  assert.equal(issuePanels.length, result.wiki.researchIssues.length, "홈 패널 수는 쟁점 등록부 수와 같다");
+  for (const [index, issue] of result.wiki.researchIssues.entries()) {
+    const tab = desktopIssueTabs.find((opening) => attributeValue(opening, "data-issue-id") === issue.id);
+    const panel = issuePanels.find((opening) => attributeValue(opening, "data-issue-id") === issue.id);
+    assert.ok(tab, `${issue.id}: 데스크톱 탭`);
+    assert.ok(panel, `${issue.id}: 조사 패널`);
+    assert.equal(attributeValue(tab, "id"), `issue-tab-${issue.id}`, `${issue.id}: 탭 ID`);
+    assert.equal(attributeValue(tab, "aria-controls"), `issue-${issue.id}`, `${issue.id}: 탭-패널 연결`);
+    assert.equal(attributeValue(panel, "id"), `issue-${issue.id}`, `${issue.id}: 패널 ID`);
+    assert.equal(attributeValue(panel, "aria-labelledby"), `issue-tab-${issue.id}`, `${issue.id}: 패널-탭 연결`);
+    assert.equal(/\bhidden\b/.test(panel), index !== 0, `${issue.id}: 기본 패널만 노출`);
+  }
+
+  const mobileIssueSelects = [...homeHtml.matchAll(/<select\b[^>]*\bdata-issue-select-mobile\b[^>]*>([\s\S]*?)<\/select>/g)];
+  assert.equal(mobileIssueSelects.length, 1, "모바일에는 쟁점을 바꾸는 native select가 하나 있다");
+  assert.match(mobileIssueSelects[0][0], /\baria-labelledby="research-issue-label"/);
+  const mobileIssueIds = [...mobileIssueSelects[0][1].matchAll(/<option\b[^>]*\bvalue="([^"]+)"[^>]*>/g)].map((match) => match[1]);
+  assert.deepEqual(mobileIssueIds, result.wiki.researchIssues.map((issue) => issue.id), "모바일 select는 안정적인 쟁점 ID를 option 값으로 쓴다");
   assert.equal(
     (homeHtml.match(/\bdata-issue-stage\b/g) ?? []).length,
     result.wiki.researchIssues.reduce((sum, issue) => sum + issue.stages.length, 0),
     "홈은 각 쟁점의 연구 단계를 모두 노출한다"
   );
   assert.match(homeHtml, /class="[^"]*\bhome-about\b[^"]*"/);
+  assert.doesNotMatch(homeHtml, /class="research-queue"/);
+  assert.doesNotMatch(homeHtml, /(?:data-home-queue-select|data-home-queue-panel)/);
   assert.doesNotMatch(homeHtml, /data-context-toggle/, "홈은 별도 문맥 서랍 토글을 두지 않는다");
   assert.doesNotMatch(homeHtml, /data-research-context/, "홈은 별도 연구 문맥 서랍 대신 리서치 데스크를 사용한다");
 
   const documentPage = result.wiki.pages.find((page) => page.category === "concepts" && page.researchIssueMemberships.length > 0);
   assert.ok(documentPage, "연구 쟁점 귀속을 가진 개념 문서가 있다");
   const documentHtml = await fs.readFile(outputPathForRoute(outputDir, documentPage.route), "utf8");
-  assert.match(documentHtml, /data-context-toggle[^>]*aria-controls="knowledge-context"/);
-  assert.match(documentHtml, /data-research-context/);
-  assert.doesNotMatch(researchContextMarkup(documentHtml), /data-context-group=/);
+  assert.doesNotMatch(documentHtml, /(?:data-context-toggle|data-research-context|id="knowledge-context")/);
 
   const categoryHtml = await fs.readFile(path.join(outputDir, "concepts", "index.html"), "utf8");
-  assert.match(categoryHtml, /data-context-toggle[^>]*aria-controls="knowledge-context"/);
-  assert.match(categoryHtml, /data-research-context/);
-  assert.doesNotMatch(researchContextMarkup(categoryHtml), /data-context-group=/);
+  assert.doesNotMatch(categoryHtml, /(?:data-context-toggle|data-research-context|id="knowledge-context")/);
 });
 
-test("전역 메뉴와 연구 문맥은 별도 반응형 서랍으로 동작한다", async () => {
+test("전역 메뉴는 반응형 서랍으로 동작한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   const mediumStart = css.indexOf("@media (max-width: 78rem)");
   const narrowStart = css.indexOf("@media (max-width: 58rem)", mediumStart);
@@ -549,22 +647,12 @@ test("전역 메뉴와 연구 문맥은 별도 반응형 서랍으로 동작한�
   assert.match(mediumCss, /\.global-menu\s*\{[^}]*display:\s*block;[^}]*transform:\s*translateX\(-105%\);/);
   assert.match(mediumCss, /\.menu-open \.global-menu\s*\{[^}]*transform:\s*translateX\(0\);/);
   assert.match(mediumCss, /\.menu-backdrop\s*\{[^}]*display:\s*block;/);
-  assert.match(narrowCss, /\.knowledge-context\s*\{[^}]*border-left:\s*1px solid var\(--line-strong\);[^}]*transform:\s*translateX\(105%\);/);
-  assert.match(narrowCss, /\.context-open \.knowledge-context\s*\{[^}]*transform:\s*translateX\(0\);/);
-  assert.match(narrowCss, /\.context-backdrop\s*\{[^}]*display:\s*block;/);
   assert.match(narrowCss, /\.reading-menu \.reader-settings\s*\{[^}]*position:\s*fixed;/);
-
   const app = await fs.readFile(path.join(rootDir, "site", "assets", "app.js"), "utf8");
   assert.match(app, /function setupNavigationDrawers\(\)/);
   assert.match(app, /querySelectorAll\("\[data-menu-toggle\]"\)/);
   assert.match(app, /querySelectorAll\("\[data-menu-close\]"\)/);
-  assert.match(app, /querySelectorAll\("\[data-context-toggle\]"\)/);
-  assert.match(app, /querySelectorAll\("\[data-context-close\]"\)/);
-  assert.match(app, /querySelectorAll\("\[data-context-backdrop\]"\)/);
   assert.match(app, /body\.classList\.toggle\("menu-open", menuOpen\)/);
-  assert.match(app, /body\.classList\.toggle\("context-open", contextOpen\)/);
-  assert.match(app, /if \(menuOpen\) contextOpen = false;/);
-  assert.match(app, /if \(contextOpen\) menuOpen = false;/);
 });
 
 test("다음 문서 제목은 화살표 공간을 확보한다", async () => {
@@ -597,7 +685,8 @@ test("본문 글꼴 선택은 리디바탕을 기본값으로 저장하고 복�
 test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사용한다", async () => {
   const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
   assert.match(homeHtml, /class="research-workbench"/);
-  assert.match(homeHtml, /class="research-trust-ribbon"/);
+  assert.match(homeHtml, /class="research-meta"/);
+  assert.doesNotMatch(homeHtml, /class="research-trust-ribbon"/);
   assert.match(homeHtml, new RegExp(`data-search-preset-status="review"><strong>${result.wiki.stats.statuses.review ?? 0}<\\/strong>개`));
   assert.match(homeHtml, new RegExp(`<time datetime="${result.wiki.stats.knowledgeAsOf}">`));
   assert.match(homeHtml, /data-search-category/);
@@ -610,13 +699,31 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(homeHtml, /<div[^>]+id="search-results"/);
   assert.match(homeHtml, /<div[^>]+role="listbox"/);
   assert.match(homeHtml, /class="search-active-filters" data-search-active-filters aria-label="적용 중인 검색 필터" hidden/);
-  assert.match(homeHtml, /class="research-queue"/);
-  assert.match(homeHtml, /data-home-queue-select/);
-  assert.match(homeHtml, /data-home-queue-panel/);
+  const searchChildren = directSearchDialogChildren(homeHtml);
+  assert.equal(searchChildren.length, 5, "검색 대화상자는 머리말·입력·명령·제어·결과의 다섯 직접 영역만 둔다");
+  const [searchHead, searchField, searchCommand, searchControls, searchResults] = searchChildren;
+  assert.deepEqual(searchChildren.map((child) => child.name), ["div", "label", "div", "div", "div"]);
+  assert.match(searchHead.opening, /class="search-head"/);
+  assert.match(searchField.opening, /class="search-field"/);
+  assert.match(searchCommand.opening, /class="search-command-bar"/);
+  assert.match(searchControls.opening, /class="search-controls-region"/);
+  assert.match(searchControls.opening, /\bdata-search-controls\b/);
+  assert.match(searchResults.opening, /class="search-results"/);
+  assert.match(searchResults.opening, /\bdata-search-results\b/);
+  const searchControlsMarkup = homeHtml.slice(searchControls.start, searchResults.start);
+  assert.match(searchControlsMarkup, /data-search-active-filters/);
+  assert.match(searchControlsMarkup, /data-search-filter-panel/);
+  assert.match(searchControlsMarkup, /data-search-status-text/);
+  assert.doesNotMatch(homeHtml, /(?:class="research-queue"|data-home-queue-select|data-home-queue-panel)/);
 
   const categoryHtml = await fs.readFile(path.join(outputDir, "concepts", "index.html"), "utf8");
   assert.match(categoryHtml, /data-category-filters/);
   assert.match(categoryHtml, /data-document-card data-status="draft"/);
+
+  const catalogHtml = await fs.readFile(outputPathForRoute(outputDir, "/catalog/"), "utf8");
+  assert.match(catalogHtml, /data-catalog-filters/);
+  assert.match(catalogHtml, /data-catalog-card data-category="home"/);
+  assert.match(catalogHtml, /data-catalog-group data-catalog-group-category="sources"/);
 
   const articlePage = result.wiki.pages.find((page) => page.data.title === "교섭창구 단일화");
   const articleHtml = await fs.readFile(outputPathForRoute(outputDir, articlePage.route), "utf8");
@@ -638,9 +745,17 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(app, /search-filter-chip/);
   assert.match(app, /search-meta-category/);
   assert.match(app, /search-meta-status/);
+  assert.match(app, /function setupCatalogFilters\(\)/);
+  assert.match(app, /data-catalog-category/);
+  assert.match(app, /catalog-category/);
   assert.match(app, /function setupResearchDesk\(\)/);
   assert.match(app, /tabSelector: "\[data-issue-select\]"/);
   assert.match(app, /panelSelector: "\[data-issue-panel\]"/);
+  assert.match(app, /nativeSelectSelector: "\[data-issue-select-mobile\], \[data-issue-native-select\]"/);
+  assert.match(app, /nativeSelects\.forEach\(\(control\) => control\.addEventListener\("change"/);
+  assert.match(app, /const keys = \["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"\];/);
+  assert.match(app, /window\.addEventListener\("hashchange", \(\) => controls\.selectFromHash\(\)\)/);
+  assert.match(app, /window\.addEventListener\("popstate", \(\) => controls\.selectFromHash\(\)\)/);
 
   const worker = await fs.readFile(path.join(rootDir, "site", "assets", "search-worker.js"), "utf8");
   assert.match(worker, /from "\.\/search-core\.js"/);
@@ -679,7 +794,7 @@ test("현대 법률 편집물 디자인 계약을 일관되게 사용한다", as
   assert.match(css, /@font-face[\s\S]*font-family:\s*"MaruBuri"/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"D2Coding"/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"RIDIBatang"/);
-  assert.match(css, /\.page-hero h1,[\s\S]*?font-family:\s*var\(--font-display\);/);
+  assert.match(css, /\.article-hero h1\s*\{[^}]*font-family:\s*var\(--font-display\);/);
   assert.match(css, /\.prose h2,[\s\S]*?font-family:\s*var\(--font-display\);/);
   assert.match(css, /--ease:\s*160ms ease;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);

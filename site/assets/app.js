@@ -16,22 +16,15 @@ function setupBodyFontPicker() {
 function setupNavigationDrawers() {
   const menuToggles = [...document.querySelectorAll("[data-menu-toggle]")];
   const sidebar = document.querySelector("#sidebar");
-  const contextToggles = [...document.querySelectorAll("[data-context-toggle]")];
-  const knowledgeContext = document.querySelector("#knowledge-context");
   const pageFrame = document.querySelector(".page-frame");
   const topbar = document.querySelector(".topbar");
   const menuCloseButtons = [...document.querySelectorAll("[data-menu-close]")];
   const menuBackdrops = [...document.querySelectorAll(".menu-backdrop")];
-  const contextCloseButtons = [...document.querySelectorAll("[data-context-close]")];
-  const contextBackdrops = [...document.querySelectorAll("[data-context-backdrop]")];
-  if (!sidebar && !knowledgeContext) return;
+  if (!sidebar) return;
 
   const menuMedia = window.matchMedia("(max-width: 78rem)");
-  const contextMedia = window.matchMedia("(max-width: 58rem)");
   let menuOpen = false;
-  let contextOpen = false;
   let menuFocusOrigin = null;
-  let contextFocusOrigin = null;
 
   const setDrawerHidden = (drawer, hidden) => {
     if (!drawer) return;
@@ -54,26 +47,16 @@ function setupNavigationDrawers() {
 
   const applyDrawerState = () => {
     if (!menuMedia.matches) menuOpen = false;
-    if (!contextMedia.matches) contextOpen = false;
-    if (menuOpen) contextOpen = false;
-    if (contextOpen) menuOpen = false;
 
     body.classList.toggle("menu-open", menuOpen);
-    body.classList.toggle("context-open", contextOpen);
     setExpanded(menuToggles, menuOpen);
-    setExpanded(contextToggles, contextOpen);
 
-    const menuHidden = Boolean(sidebar) && ((menuMedia.matches && !menuOpen) || contextOpen);
-    const contextHidden = Boolean(knowledgeContext) && ((contextMedia.matches && !contextOpen) || menuOpen);
+    const menuHidden = menuMedia.matches && !menuOpen;
     setDrawerHidden(sidebar, menuHidden);
-    setDrawerHidden(knowledgeContext, contextHidden);
     setBackdropState(menuBackdrops, menuOpen);
-    setBackdropState(contextBackdrops, contextOpen);
 
-    const activeDrawer = menuOpen ? sidebar : contextOpen ? knowledgeContext : null;
-    const canInertFrame = activeDrawer && pageFrame && !pageFrame.contains(activeDrawer);
-    if (pageFrame) pageFrame.inert = Boolean(canInertFrame);
-    if (topbar) topbar.inert = Boolean(activeDrawer);
+    if (pageFrame) pageFrame.inert = menuOpen;
+    if (topbar) topbar.inert = menuOpen;
   };
 
   const focusDrawer = (drawer, isOpen) => {
@@ -95,7 +78,6 @@ function setupNavigationDrawers() {
       return;
     }
     if (open) {
-      contextOpen = false;
       menuOpen = true;
       menuFocusOrigin = trigger || document.activeElement;
       applyDrawerState();
@@ -110,56 +92,22 @@ function setupNavigationDrawers() {
     if (wasOpen && restore) restoreFocus(focusOrigin);
   };
 
-  const setContextOpen = (open, { trigger = null, restore = true } = {}) => {
-    if (!knowledgeContext || !contextMedia.matches) {
-      contextOpen = false;
-      applyDrawerState();
-      return;
-    }
-    if (open) {
-      menuOpen = false;
-      contextOpen = true;
-      contextFocusOrigin = trigger || document.activeElement;
-      applyDrawerState();
-      focusDrawer(knowledgeContext, () => contextOpen);
-      return;
-    }
-
-    const focusOrigin = contextFocusOrigin;
-    const wasOpen = contextOpen;
-    contextOpen = false;
-    applyDrawerState();
-    if (wasOpen && restore) restoreFocus(focusOrigin);
-  };
-
   menuToggles.forEach((toggle) => toggle.addEventListener("click", () => {
     setMenuOpen(!menuOpen, { trigger: toggle });
   }));
-  contextToggles.forEach((toggle) => toggle.addEventListener("click", () => {
-    setContextOpen(!contextOpen, { trigger: toggle });
-  }));
   menuCloseButtons.forEach((button) => button.addEventListener("click", () => setMenuOpen(false)));
-  contextCloseButtons.forEach((button) => button.addEventListener("click", () => setContextOpen(false)));
-  contextBackdrops.forEach((backdrop) => backdrop.addEventListener("click", () => setContextOpen(false)));
 
   sidebar?.addEventListener("click", (event) => {
     if (event.target.closest("a") && menuMedia.matches) setMenuOpen(false, { restore: false });
-  });
-  knowledgeContext?.addEventListener("click", (event) => {
-    if (event.target.closest("a") && contextMedia.matches) setContextOpen(false, { restore: false });
   });
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (menuOpen) {
       event.preventDefault();
       setMenuOpen(false);
-    } else if (contextOpen) {
-      event.preventDefault();
-      setContextOpen(false);
     }
   });
   menuMedia.addEventListener("change", applyDrawerState);
-  contextMedia.addEventListener("change", applyDrawerState);
   applyDrawerState();
 }
 
@@ -279,6 +227,30 @@ function setupSearch() {
   let workerRequest = 0;
   let workerSupported = "Worker" in window;
   const workerPending = new Map();
+  let searchFocusOrigin = null;
+  let shouldRestoreSearchFocus = false;
+
+  const rememberSearchFocusOrigin = (trigger, restoreFocus) => {
+    if (!restoreFocus) {
+      searchFocusOrigin = null;
+      shouldRestoreSearchFocus = false;
+      return;
+    }
+    const origin = trigger || document.activeElement;
+    searchFocusOrigin = origin && typeof origin.focus === "function" ? origin : null;
+    shouldRestoreSearchFocus = Boolean(searchFocusOrigin);
+  };
+
+  const restoreSearchFocus = () => {
+    const origin = searchFocusOrigin;
+    const shouldRestore = shouldRestoreSearchFocus;
+    searchFocusOrigin = null;
+    shouldRestoreSearchFocus = false;
+    if (!shouldRestore || !origin?.isConnected || typeof origin.focus !== "function") return;
+    window.setTimeout(() => {
+      if (origin.isConnected) origin.focus({ preventScroll: true });
+    }, 0);
+  };
 
   const initializeWorker = () => {
     if (!workerSupported || worker) return;
@@ -516,7 +488,7 @@ function setupSearch() {
     }
   };
 
-  const open = (preset = {}) => {
+  const open = (preset = {}, { trigger = null, restoreFocus = true } = {}) => {
     const hasPreset = Object.values(preset).some((value) => value !== undefined);
     if (hasPreset) {
       input.value = "";
@@ -534,7 +506,10 @@ function setupSearch() {
     visibleLimit = 12;
     setFilterOpen(false);
     syncFilterUi();
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) {
+      rememberSearchFocusOrigin(trigger, restoreFocus);
+      dialog.showModal();
+    }
     window.setTimeout(() => input.focus(), 0);
     render();
   };
@@ -551,7 +526,7 @@ function setupSearch() {
     area: button.dataset.searchPresetArea,
     status: button.dataset.searchPresetStatus,
     category: button.dataset.searchPresetCategory
-  })));
+  }, { trigger: button })));
   closeButton?.addEventListener("click", close);
   filterToggle.addEventListener("click", () => setFilterOpen(!filterIsOpen()));
   filterDone.addEventListener("click", () => setFilterOpen(false, { focusToggle: true }));
@@ -597,6 +572,7 @@ function setupSearch() {
     setFilterOpen(false);
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");
+    restoreSearchFocus();
   });
   mobileFilterMedia.addEventListener?.("change", syncFilterOverlayState);
   window.addEventListener("keydown", (event) => {
@@ -604,10 +580,10 @@ function setupSearch() {
     const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
     if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase("en-US") === "k") {
       event.preventDefault();
-      open();
+      open({}, { trigger: document.activeElement });
     } else if (event.key === "/" && !typing && !dialog.open) {
       event.preventDefault();
-      open();
+      open({}, { trigger: document.activeElement });
     }
   });
 
@@ -620,58 +596,91 @@ function setupSearch() {
   legalStatusFilter.value = url.searchParams.get("search-legal") || "";
   dateKindFilter.value = url.searchParams.get("search-date") || "";
   syncFilterUi();
-  if (url.searchParams.get("search") === "1" || input.value || categoryFilter.value || statusFilter.value || areaFilter.value || sourceTypeFilter.value || legalStatusFilter.value || dateKindFilter.value) open();
+  if (url.searchParams.get("search") === "1" || input.value || categoryFilter.value || statusFilter.value || areaFilter.value || sourceTypeFilter.value || legalStatusFilter.value || dateKindFilter.value) {
+    open({}, { restoreFocus: false });
+  }
 }
 
-function setupCategoryFilters() {
-  const controls = document.querySelector("[data-category-filters]");
-  const cards = [...document.querySelectorAll("[data-document-card]")];
+function setupDocumentFilters(controlsSelector, cardSelector, countSelector, filters, prefix = "", groupSelector = "") {
+  const controls = document.querySelector(controlsSelector);
+  const cards = [...document.querySelectorAll(cardSelector)];
   if (!controls || !cards.length) return;
-  const status = controls.querySelector("[data-category-status]");
-  const area = controls.querySelector("[data-category-area]");
-  const count = controls.querySelector("[data-category-count]");
+  const fields = filters.map(([name, selector]) => [name, controls.querySelector(selector)]);
+  const groups = groupSelector ? [...document.querySelectorAll(groupSelector)] : [];
+  const count = controls.querySelector(countSelector);
+
   const syncUrl = () => {
     const url = new URL(window.location.href);
-    if (status?.value) url.searchParams.set("status", status.value);
-    else url.searchParams.delete("status");
-    if (area?.value) url.searchParams.set("area", area.value);
-    else url.searchParams.delete("area");
+    fields.forEach(([name, control]) => {
+      const key = `${prefix}${name}`;
+      if (control?.value) url.searchParams.set(key, control.value);
+      else url.searchParams.delete(key);
+    });
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   };
+
   const apply = (updateUrl = true) => {
     let visible = 0;
     for (const card of cards) {
-      const show = (!status?.value || card.dataset.status === status.value) && (!area?.value || card.dataset.area === area.value);
+      const show = fields.every(([name, control]) => !control?.value || card.dataset[name] === control.value);
       card.hidden = !show;
       if (show) visible += 1;
     }
-    if (count) count.textContent = String(visible);
+    groups.forEach((group) => {
+      const visibleCards = [...group.querySelectorAll(cardSelector)].filter((card) => !card.hidden);
+      group.hidden = !visibleCards.length;
+    });
+    if (count) count.textContent = visible;
     if (updateUrl) syncUrl();
   };
-  status?.addEventListener("change", apply);
-  area?.addEventListener("change", apply);
+  fields.forEach(([, control]) => control?.addEventListener("change", apply));
+  controls.addEventListener("submit", event => event.preventDefault());
   const url = new URL(window.location.href);
-  const initialStatus = url.searchParams.get("status") || "";
-  const initialArea = url.searchParams.get("area") || "";
-  if (status && [...status.options].some((option) => option.value === initialStatus)) status.value = initialStatus;
-  if (area && [...area.options].some((option) => option.value === initialArea)) area.value = initialArea;
+  fields.forEach(([name, control]) => {
+    const value = url.searchParams.get(`${prefix}${name}`) || "";
+    if (control && [...control.options].some((option) => option.value === value)) control.value = value;
+  });
   apply(false);
 }
 
-function setupResearchTabs({ tabSelector, panelSelector, idAttribute, hashPrefix = "" }) {
+function setupCategoryFilters() {
+  setupDocumentFilters("[data-category-filters]", "[data-document-card]", "[data-category-count]", [["status", "[data-category-status]"], ["area", "[data-category-area]"]]);
+}
+
+function setupCatalogFilters() {
+  setupDocumentFilters("[data-catalog-filters]", "[data-catalog-card]", "[data-catalog-count]", [["category", "[data-catalog-category]"], ["status", "[data-catalog-status]"], ["area", "[data-catalog-area]"]], "catalog-", "[data-catalog-group]");
+}
+
+function setupResearchTabs({ tabSelector, panelSelector, idAttribute, hashPrefix = "", nativeSelectSelector = "" }) {
   const tabs = [...document.querySelectorAll(tabSelector)];
   const panels = [...document.querySelectorAll(panelSelector)];
   if (!tabs.length || !panels.length) return null;
 
   const panelById = new Map(panels.map((panel) => [panel.dataset[idAttribute], panel]));
   const tabById = new Map(tabs.map((tab) => [tab.dataset[idAttribute], tab]));
+  const nativeSelects = nativeSelectSelector
+    ? [...document.querySelectorAll(nativeSelectSelector)].filter((control) => control.tagName === "SELECT")
+    : [];
+  const compactMedia = window.matchMedia("(max-width: 58rem)");
   const firstId = tabs[0].dataset[idAttribute];
-  let currentId = firstId;
 
   const validId = (id) => tabById.has(id) && panelById.has(id);
-  const select = (id, { focus = false, updateHash = false } = {}) => {
+  const syncNativeSelects = (id) => {
+    nativeSelects.forEach((control) => {
+      if ([...control.options].some((option) => option.value === id)) control.value = id;
+    });
+  };
+  const writeHash = (id, history = "none") => {
+    if (!hashPrefix || history === "none") return;
+    const url = new URL(window.location.href);
+    const nextHash = `#${hashPrefix}${encodeURIComponent(id)}`;
+    if (url.hash === nextHash) return;
+    url.hash = `${hashPrefix}${encodeURIComponent(id)}`;
+    const method = history === "replace" ? "replaceState" : "pushState";
+    window.history[method](null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+  const select = (id, { focus = false, history = "none" } = {}) => {
     const nextId = validId(id) ? id : firstId;
-    currentId = nextId;
     tabs.forEach((tab) => {
       const active = tab.dataset[idAttribute] === nextId;
       tab.setAttribute("aria-selected", String(active));
@@ -681,17 +690,15 @@ function setupResearchTabs({ tabSelector, panelSelector, idAttribute, hashPrefix
     panels.forEach((panel) => {
       panel.hidden = panel.dataset[idAttribute] !== nextId;
     });
-    if (updateHash && hashPrefix) {
-      const url = new URL(window.location.href);
-      url.hash = `${hashPrefix}${encodeURIComponent(nextId)}`;
-      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-    }
+    syncNativeSelects(nextId);
+    writeHash(nextId, history);
     return nextId;
   };
 
   tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => select(tab.dataset[idAttribute], { updateHash: Boolean(hashPrefix) }));
+    tab.addEventListener("click", () => select(tab.dataset[idAttribute], { history: hashPrefix ? "push" : "none" }));
     tab.addEventListener("keydown", (event) => {
+      if (nativeSelects.length && compactMedia.matches) return;
       const keys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"];
       if (!keys.includes(event.key)) return;
       event.preventDefault();
@@ -700,21 +707,26 @@ function setupResearchTabs({ tabSelector, panelSelector, idAttribute, hashPrefix
       else if (event.key === "End") nextIndex = tabs.length - 1;
       else if (event.key === "ArrowUp" || event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
       else nextIndex = (index + 1) % tabs.length;
-      select(tabs[nextIndex].dataset[idAttribute], { focus: true, updateHash: Boolean(hashPrefix) });
+      select(tabs[nextIndex].dataset[idAttribute], { focus: true, history: hashPrefix ? "push" : "none" });
     });
   });
+  nativeSelects.forEach((control) => control.addEventListener("change", () => {
+    select(control.value, { history: hashPrefix ? "push" : "none" });
+  }));
 
   return {
     select,
     selectFromHash() {
-      if (!hashPrefix || !window.location.hash.startsWith(`#${hashPrefix}`)) return select(currentId);
+      if (!hashPrefix || !window.location.hash.startsWith(`#${hashPrefix}`)) return select(firstId);
       let id = window.location.hash.slice(hashPrefix.length + 1);
+      let decoded = true;
       try {
         id = decodeURIComponent(id);
       } catch {
         id = firstId;
+        decoded = false;
       }
-      return select(id);
+      return select(id, { history: decoded && validId(id) ? "none" : "replace" });
     }
   };
 }
@@ -724,19 +736,13 @@ function setupResearchDesk() {
     tabSelector: "[data-issue-select]",
     panelSelector: "[data-issue-panel]",
     idAttribute: "issueId",
-    hashPrefix: "issue-"
+    hashPrefix: "issue-",
+    nativeSelectSelector: "[data-issue-select-mobile], [data-issue-native-select]"
   });
   if (!controls) return;
   controls.selectFromHash();
   window.addEventListener("hashchange", () => controls.selectFromHash());
-}
-
-function setupHomeQueue() {
-  setupResearchTabs({
-    tabSelector: "[data-home-queue-select]",
-    panelSelector: "[data-home-queue-panel]",
-    idAttribute: "queueId"
-  });
+  window.addEventListener("popstate", () => controls.selectFromHash());
 }
 
 function setupReadingCoordinates() {
@@ -866,8 +872,8 @@ setupBodyFontPicker();
 setupNavigationDrawers();
 setupSearch();
 setupCategoryFilters();
+setupCatalogFilters();
 setupResearchDesk();
-setupHomeQueue();
 setupOverflowTables();
 setupEvidenceCitations();
 if ("requestIdleCallback" in window) window.requestIdleCallback(setupReadingCoordinates, { timeout: 700 });

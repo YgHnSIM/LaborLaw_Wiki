@@ -347,6 +347,19 @@ source_refs: []
 - `site/templates.mjs`, `site/assets/app.js`, `site/assets/styles.css`에서 홈을 질문 탭·조사 사건철·실제 근거 집계·업데이트 탭을 갖는 리서치 데스크로 압축하고, 위키 운영 본문은 접힌 상세 영역으로 보존함.
 - `site/templates.mjs`, `site/assets/styles.css`, `site/tests/build.test.mjs`에서 문서의 신뢰정보와 목차를 오른쪽 문서 레일로 이동하고, 기존 검색·목차·모바일 서랍·근거 앵커·글꼴 선택 계약을 유지하도록 웹 회귀 검사를 갱신함.
 
+## [2026-07-26] update | 문서 우선 법률 리더 UI 재구성
+
+- `site/templates.mjs`에서 상단 탐색을 공통 셸 좌표에 맞추고, 홈을 짧은 리서치 브리핑과 쟁점 조사 데스크로 정리했으며, 문서 히어로·분류 목록·검색 제어 영역의 장식 번호와 중복 요약을 제거했다.
+- `site/assets/styles.css`에서 문서 본문·목차 레일·히어로가 같은 폭을 공유하도록 재구성하고, 78rem 이하의 신뢰정보 리본과 58rem 이하의 native 쟁점 선택기를 적용했다.
+- `site/assets/app.js`에서 모바일 쟁점 선택기와 해시 상태를 동기화하고, 잘못된 쟁점 해시를 기본값으로 정규화했으며, 검색 다이얼로그를 닫을 때 실행 지점으로 포커스를 돌려보내도록 보강했다.
+- `site/tests/build.test.mjs`와 `wiki/log.md`에서 새 홈·문서·분류·검색 DOM 계약, 제거된 장식 UI, 기존 검색·메뉴·목차·근거 훅의 보존 및 감사기록을 갱신했다.
+
+## [2026-07-26] update | 전체 색인 탐색 화면 정리
+
+- `site/build.mjs`와 `site/templates.mjs`에서 전체 색인을 일반 문서 렌더러가 아닌 분류형 카탈로그로 출력하도록 바꾸고, 기존 홈·메타·소스·개념·개체·분석 섹션 앵커를 유지했다.
+- `site/assets/styles.css`와 `site/assets/app.js`에서 카탈로그 그룹 헤더, 문서 메타, 분류·상태·영역 필터, 빈 그룹 숨김과 URL 동기화를 추가해 분류 화면과 같은 탐색 방식을 적용했다.
+- `site/tests/build.test.mjs`와 `wiki/log.md`에서 카탈로그 전용 DOM, 모든 문서의 단일 출력, 기존 섹션 링크 및 필터 계약을 회귀 검사에 기록했다.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
