@@ -6,9 +6,8 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSite } from "../build.mjs";
-import { outputPathForRoute, siteHref } from "../lib/wiki.mjs";
+import { outputPathForRoute } from "../lib/wiki.mjs";
 import { createMarkdownRenderer, renderMarkdownPage } from "../lib/render-markdown.mjs";
-import { renderPage } from "../templates.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const basePath = "/LaborLaw_Wiki/";
@@ -17,6 +16,17 @@ let result;
 let expectedPageCount;
 let expectedWikiLinkCount;
 let expectedCategoryCounts;
+const RESEARCH_ISSUE_IDS = [
+  "worker-employer",
+  "wage-benefit",
+  "working-time",
+  "dismissal-personnel",
+  "nonstandard-work",
+  "collective-labor",
+  "industrial-safety",
+  "equality-remedy",
+  "legislation-change"
+];
 
 async function listFiles(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -29,16 +39,17 @@ async function listFiles(directory) {
   return files;
 }
 
-function knowledgeContextMarkup(html) {
-  const context = html.match(/<aside class="knowledge-context" id="knowledge-context" data-knowledge-context[^>]*>([\s\S]*?)<\/aside>/)?.[1];
-  assert.ok(context, "지식 연결 패널이 생성된다");
+function researchContextMarkup(html) {
+  const context = html.match(/<aside\b(?=[^>]*\bid="knowledge-context")(?=[^>]*\bclass="[^"]*\bresearch-context\b[^"]*")(?=[^>]*\bdata-knowledge-context\b)[^>]*>([\s\S]*?)<\/aside>/)?.[1];
+  assert.ok(context, "연구 문맥 패널이 생성된다");
   return context;
 }
 
-function contextGroupMarkup(context, name) {
-  const group = context.match(new RegExp(`<section class="context-group" data-context-group="${name}">([\\s\\S]*?)<\\/section>`))?.[1];
-  assert.ok(group, `${name} 지식 연결 그룹이 생성된다`);
-  return group;
+function researchMembershipShape(memberships) {
+  return memberships.map(({ issue, stageIds }) => ({
+    issueId: issue.id,
+    stageIds: [...stageIds]
+  }));
 }
 
 before(async () => {
@@ -78,21 +89,114 @@ test("모든 위키 문서와 링크를 빌드한다", () => {
   }
 });
 
-test("지식 연결 모델은 직접 링크를 중복·자기참조 없이 역방향까지 계산한다", async () => {
-  for (const page of result.wiki.pages) {
-    const routes = page.outgoingPages.map((target) => target.route);
-    assert.equal(new Set(routes).size, routes.length, `${page.relativePath}: 직접 연결 중복`);
-    assert.ok(!page.outgoingPages.includes(page), `${page.relativePath}: 자기참조 제외`);
-    for (const target of page.outgoingPages) {
-      assert.ok(target.incomingPages.includes(page), `${page.relativePath} → ${target.relativePath}: 역연결`);
+test("연구 쟁점 모델은 등록부·단계·문서 귀속을 일관되게 해소한다", async () => {
+  const { wiki } = result;
+  const { researchIssues, researchIssueMemberships } = wiki;
+  assert.ok(Array.isArray(researchIssues), "연구 쟁점 등록부가 배열로 제공된다");
+  assert.ok(researchIssueMemberships instanceof Map, "문서별 연구 쟁점 귀속은 route Map으로 제공된다");
+  assert.deepEqual(researchIssues.map((issue) => issue.id), RESEARCH_ISSUE_IDS, "9개 쟁점 등록부의 순서를 고정한다");
+
+  const issueById = new Map(researchIssues.map((issue) => [issue.id, issue]));
+  for (const issue of researchIssues) {
+    assert.equal(typeof issue.question, "string", `${issue.id}: 연구 질문`);
+    assert.ok(issue.question.trim(), `${issue.id}: 연구 질문이 비어 있지 않다`);
+    assert.equal(typeof issue.description, "string", `${issue.id}: 연구 설명`);
+    assert.ok(issue.description.trim(), `${issue.id}: 연구 설명이 비어 있지 않다`);
+    assert.ok(Array.isArray(issue.stages) && issue.stages.length > 0, `${issue.id}: 연구 단계`);
+    assert.ok(Array.isArray(issue.pages) && issue.pages.length > 0, `${issue.id}: 직접 구성 문서`);
+    assert.equal(issue.documentCount, issue.pages.length, `${issue.id}: 문서 수`);
+    assert.equal(issue.analysisCount, issue.pages.filter((page) => page.category === "analyses").length, `${issue.id}: 분석 문서 수`);
+    assert.equal(issue.reviewCount, issue.pages.filter((page) => page.data.status === "review").length, `${issue.id}: 검토 문서 수`);
+    assert.ok(issue.pages.includes(issue.primaryPage), `${issue.id}: 대표 문서는 구성 문서에 포함된다`);
+
+    const routes = issue.pages.map((page) => page.route);
+    assert.equal(new Set(routes).size, routes.length, `${issue.id}: 직접 구성 문서가 중복되지 않는다`);
+    const officialSourceRoutes = new Set(issue.pages
+      .flatMap((page) => page.sourcePages)
+      .filter((source) => source.data.source_type.startsWith("official_"))
+      .map((source) => source.route));
+    assert.equal(issue.officialSourceCount, officialSourceRoutes.size, `${issue.id}: 고유 공식 근거 수`);
+
+    const stageIds = new Set();
+    const stagedRoutes = new Set();
+    for (const stage of issue.stages) {
+      assert.equal(typeof stage.id, "string", `${issue.id}: 단계 ID`);
+      assert.ok(stage.id, `${issue.id}: 빈 단계 ID가 없다`);
+      assert.ok(!stageIds.has(stage.id), `${issue.id}: 단계 ID가 중복되지 않는다`);
+      stageIds.add(stage.id);
+      assert.equal(typeof stage.label, "string", `${issue.id}/${stage.id}: 단계명`);
+      assert.ok(stage.label.trim(), `${issue.id}/${stage.id}: 단계명이 비어 있지 않다`);
+      assert.ok(Array.isArray(stage.pages), `${issue.id}/${stage.id}: 단계 문서 목록`);
+      for (const page of stage.pages) {
+        assert.ok(issue.pages.includes(page), `${issue.id}/${stage.id}: 단계 문서는 쟁점 구성 문서다`);
+        assert.notEqual(page.category, "sources", `${issue.id}/${stage.id}: 출처는 직접 단계에 등록하지 않는다`);
+        stagedRoutes.add(page.route);
+      }
     }
-    for (const reciprocal of page.reciprocalPages) {
-      assert.ok(page.outgoingPages.includes(reciprocal), `${page.relativePath}: 상호 연결의 정방향`);
-      assert.ok(page.incomingPages.includes(reciprocal), `${page.relativePath}: 상호 연결의 역방향`);
+    assert.deepEqual([...stagedRoutes].sort(), [...routes].sort(), `${issue.id}: 단계 문서의 합집합이 쟁점 문서와 같다`);
+  }
+
+  for (const page of wiki.pages) {
+    const memberships = researchIssueMemberships.get(page.route) ?? [];
+    assert.ok(Array.isArray(memberships), `${page.relativePath}: 연구 쟁점 귀속은 배열이다`);
+    assert.deepEqual(page.researchIssueIds, memberships.map((membership) => membership.issue.id), `${page.relativePath}: 쟁점 ID 파생값`);
+    assert.deepEqual(researchMembershipShape(page.researchIssueMemberships), researchMembershipShape(memberships), `${page.relativePath}: 쟁점 귀속 파생값`);
+
+    let previousIssueIndex = -1;
+    for (const membership of memberships) {
+      const issue = issueById.get(membership.issue.id);
+      assert.equal(membership.issue, issue, `${page.relativePath}: 등록부의 해소된 쟁점 객체를 사용한다`);
+      const issueIndex = RESEARCH_ISSUE_IDS.indexOf(issue.id);
+      assert.ok(issueIndex > previousIssueIndex, `${page.relativePath}: 쟁점 귀속은 등록부 순서다`);
+      previousIssueIndex = issueIndex;
+      assert.ok(Array.isArray(membership.stageIds) && membership.stageIds.length > 0, `${page.relativePath}/${issue.id}: 단계 귀속`);
+      assert.equal(new Set(membership.stageIds).size, membership.stageIds.length, `${page.relativePath}/${issue.id}: 단계 귀속 중복`);
+      for (const stageId of membership.stageIds) {
+        const stage = issue.stages.find((candidate) => candidate.id === stageId);
+        assert.ok(stage, `${page.relativePath}/${issue.id}: 등록된 단계만 참조한다`);
+        if (page.category !== "sources") {
+          assert.ok(stage.pages.includes(page), `${page.relativePath}/${issue.id}/${stageId}: 직접 구성 문서의 단계 역참조`);
+        }
+      }
     }
   }
+
+  for (const source of wiki.groups.sources) {
+    const expectedStageIdsByIssue = new Map();
+    for (const citedBy of source.citedBy) {
+      for (const membership of researchIssueMemberships.get(citedBy.route) ?? []) {
+        const stageIds = expectedStageIdsByIssue.get(membership.issue.id) ?? new Set();
+        membership.stageIds.forEach((stageId) => stageIds.add(stageId));
+        expectedStageIdsByIssue.set(membership.issue.id, stageIds);
+      }
+    }
+    const expected = researchIssues
+      .filter((issue) => expectedStageIdsByIssue.has(issue.id))
+      .map((issue) => ({
+        issueId: issue.id,
+        stageIds: issue.stages
+          .filter((stage) => expectedStageIdsByIssue.get(issue.id).has(stage.id))
+          .map((stage) => stage.id)
+      }));
+    const actual = researchMembershipShape(researchIssueMemberships.get(source.route) ?? []);
+    assert.deepEqual(actual, expected, `${source.relativePath}: 출처 귀속은 인용 문서의 쟁점·단계 합집합이다`);
+  }
+
+  for (const page of wiki.pages) {
+    for (const field of ["outgoingPages", "incomingPages", "reciprocalPages", "sameAreaPages", "connectionCounts"]) {
+      assert.equal(Object.hasOwn(page, field), false, `${page.relativePath}: 기존 직접 연결 필드 ${field}를 노출하지 않는다`);
+    }
+  }
+  assert.equal(Object.hasOwn(wiki.stats, "connections"), false, "기존 직접 연결 통계를 노출하지 않는다");
+
   const searchIndex = JSON.parse(await fs.readFile(path.join(outputDir, "search.json"), "utf8"));
-  assert.ok(searchIndex.every((entry) => !Object.hasOwn(entry, "outgoingPages") && !Object.hasOwn(entry, "connectionCounts")), "검색 색인 구조를 유지한다");
+  assert.ok(searchIndex.every((entry) => [
+    "outgoingPages",
+    "connectionCounts",
+    "researchIssues",
+    "researchIssueIds",
+    "researchIssueMemberships"
+  ].every((field) => !Object.hasOwn(entry, field))), "검색 색인 구조에 연결·연구 데스크 내부 필드를 추가하지 않는다");
 });
 
 test("빌드 출력 경로가 저장소나 상위 디렉터리를 지울 수 없도록 차단한다", async () => {
@@ -150,30 +254,26 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
     assert.match(html, /data-design="legal-editorial"/);
     assert.match(html, /<meta name="theme-color" content="#2547D0">/);
     if (page.route === "/") {
-      const leadStart = html.indexOf('<section class="home-lead"');
-      const searchStart = html.indexOf('<section class="home-search"');
-      const lead = html.slice(leadStart, searchStart);
+      const workbenchStart = html.indexOf('class="research-workbench"');
       const article = html.match(/<article class="prose home-description">([\s\S]*?)<\/article>/)?.[1];
       assert.ok(article, "홈 설명 본문");
-      assert.ok(leadStart >= 0 && searchStart > leadStart, "홈 소개와 신뢰 현황은 검색보다 앞선 하나의 리드 영역에 있다");
-      assert.match(lead, /class="page-hero is-home"/);
-      assert.match(lead, /class="home-stats"/);
-      assert.doesNotMatch(lead, /class="aliases"/);
-      assert.doesNotMatch(lead, /class="page-facts evidence-strip"/);
-      assert.match(html, /<p class="page-summary">이 위키는 대한민국 노동법의 법령, 판례, 행정해석/);
-      assert.doesNotMatch(article, /대한민국 노동법의 법령, 판례, 행정해석/);
+      assert.ok(workbenchStart >= 0, "홈은 리서치 워크벤치로 시작한다");
+      assert.match(html, /class="research-intro"/);
+      assert.match(html, /class="research-search"/);
+      assert.match(html, /class="research-trust-ribbon"/);
+      assert.match(html, /class="research-desk"/);
+      assert.match(html, /class="research-queue"/);
+      assert.match(html, /<details class="home-about">/);
       assert.match(article, /<h2[^>]*>기준일과 현재 상태/);
-      assert.match(html, /영역별 현황/);
-      assert.match(html, /근거 연결이 많은 분석/);
-      assert.match(html, /최근 검증 문서/);
-      assert.match(html, /검토가 필요한 문서/);
       assert.doesNotMatch(html, /class="breadcrumbs"/);
       assert.doesNotMatch(html, /class="page-toc"/);
       assert.doesNotMatch(html, /class="mobile-toc"/);
+      assert.doesNotMatch(html, /data-research-context/);
     } else {
       assert.match(html, /class="page-toc"/);
       assert.match(html, /class="mobile-toc"/);
-      assert.match(html, /class="article-evidence-trust page-hero-trust"/);
+      assert.match(html, /<aside class="document-rail"/);
+      assert.match(html, /class="article-evidence-trust"><dl class="page-facts evidence-strip"/);
       assert.doesNotMatch(html, /class="reading-rail"/);
     }
     assert.match(html, /<dialog[^>]+aria-labelledby="search-dialog-title"/);
@@ -335,29 +435,29 @@ test("본문 HTML을 실행하지 않고 위키 별칭을 안전한 링크로 �
   assert.match(html, /href="\/LaborLaw_Wiki\/sources\/src-beeda8348a\/"/);
 });
 
-test("문서 히어로는 신뢰정보와 의미 상태를 분리해 표시한다", async () => {
+test("문서 레일은 신뢰정보와 의미 상태를 본문에서 분리해 표시한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   const legalStatusPage = result.wiki.pages.find((page) => page.data.legal_status);
   const html = await fs.readFile(outputPathForRoute(outputDir, legalStatusPage.route), "utf8");
-  assert.match(html, /class="article-evidence-trust page-hero-trust"><dl class="page-facts evidence-strip"/);
+  const documentRailStart = html.indexOf('class="document-rail"');
+  const articleStart = html.indexOf('<article class="prose"');
+  assert.ok(documentRailStart >= 0 && articleStart > documentRailStart, "신뢰 레일은 본문보다 앞에 생성된다");
+  const trustStart = html.indexOf('class="article-evidence-trust"', documentRailStart);
+  assert.ok(trustStart > documentRailStart && trustStart < articleStart, "신뢰 정보는 문서 레일에 있다");
+  assert.match(html, /class="article-evidence-trust"><dl class="page-facts evidence-strip"/);
   assert.match(html, /class="legal-status legal-status-[a-z]+ status-tone-(?:current|muted|warning)"/);
-  assert.match(css, /\.page-hero-content\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(14rem, 18rem\);/);
   assert.match(css, /\.page-facts\.evidence-strip\s*\{[^}]*display:\s*grid;[^}]*border:\s*1px solid var\(--line\);/);
   assert.match(css, /\.status-tone-current[\s\S]*?color:\s*var\(--active\);/);
   assert.match(css, /\.status-tone-review[\s\S]*?color:\s*var\(--review\);/);
   assert.match(css, /\.status-tone-warning[\s\S]*?color:\s*var\(--danger\);/);
 });
 
-test("모바일 바로 찾기 홀수 격자는 빈 셀의 경계선을 닫는다", async () => {
+test("홈의 리서치 검색은 기존 검색 프리셋으로 바로 찾기를 제공한다", async () => {
   const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
-  assert.match(homeHtml, /class="home-search-suggestions" data-has-empty-cell/);
-
-  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
-  const mobileStart = css.indexOf("@media (max-width: 38rem)");
-  const printStart = css.indexOf("@media print", mobileStart);
-  assert.ok(mobileStart >= 0 && printStart > mobileStart, "38rem 모바일 스타일 구간");
-  const mobileCss = css.slice(mobileStart, printStart);
-  assert.match(mobileCss, /\.home-search-suggestions\[data-has-empty-cell\]::after\s*\{[^}]*content:\s*"";[^}]*border-top:\s*1px solid var\(--line\);[^}]*border-left:\s*1px solid var\(--line\);/);
+  assert.match(homeHtml, /class="research-search-suggestions"/);
+  for (const query of ["통상임금", "해고", "근로시간", "산업재해", "원하청 교섭"]) {
+    assert.match(homeHtml, new RegExp(`data-search-open data-search-preset-query="${query}"`), query);
+  }
 });
 
 test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다", async () => {
@@ -369,15 +469,14 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
   assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto;[^}]*padding:\s*0\.65rem 0\.75rem;/);
 });
 
-test("전역 탐색과 지식 문맥은 문서 단위 탐색을 분리한다", async () => {
+test("연구 데스크는 전역 탐색·문서 문맥·본문/근거 레일을 분리한다", async () => {
   const documentPage = result.wiki.pages.find((page) => (
     page.category !== "meta"
     && page.category !== "sources"
-    && page.connectionCounts.direct > 0
-    && page.connectionCounts.incoming > 0
-    && page.connectionCounts.evidence > 0
+    && page.sourcePages.length > 0
+    && page.researchIssueMemberships.length > 0
   ));
-  assert.ok(documentPage, "직접·역·근거 연결을 모두 가진 문서가 있다");
+  assert.ok(documentPage, "근거와 연구 쟁점 귀속을 함께 가진 문서가 있다");
   const html = await fs.readFile(outputPathForRoute(outputDir, documentPage.route), "utf8");
 
   const globalMenu = html.match(/<aside class="global-menu" id="sidebar"[^>]*>([\s\S]*?)<\/aside>/)?.[1];
@@ -389,102 +488,57 @@ test("전역 탐색과 지식 문맥은 문서 단위 탐색을 분리한다", a
     assert.match(globalMenu, new RegExp(`href="${basePath}${category}/"`), category);
   }
 
-  const context = knowledgeContextMarkup(html);
-  assert.match(context, /class="context-current"/);
-  for (const [label, value] of [
-    ["직접 연결", documentPage.connectionCounts.direct],
-    ["역연결", documentPage.connectionCounts.incoming],
-    ["근거", documentPage.connectionCounts.evidence]
-  ]) {
-    assert.match(context, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), label);
-  }
-
-  const toggleCount = documentPage.connectionCounts.direct
-    + documentPage.connectionCounts.incoming
-    + documentPage.connectionCounts.evidence
-    + documentPage.connectionCounts.sourceLineage;
-  assert.match(html, new RegExp(`class="context-trigger"[^>]*data-context-toggle[^>]*aria-controls="knowledge-context"[^>]*aria-expanded="false"[^>]*>[\\s\\S]*?<strong>${toggleCount}<\\/strong>`));
+  const context = researchContextMarkup(html);
+  assert.match(html, /data-research-context/);
+  assert.doesNotMatch(context, /data-context-group=/, "기존 연결 그룹 대신 연구 문맥을 사용한다");
+  assert.match(html, /class="context-trigger"[^>]*data-context-toggle[^>]*aria-controls="knowledge-context"[^>]*aria-expanded="false"/);
   assert.match(html, /class="menu-trigger"[^>]*data-menu-toggle[^>]*aria-controls="sidebar"/);
   assert.match(html, /class="menu-backdrop"[^>]*data-menu-close/);
   assert.match(html, /class="context-backdrop"[^>]*data-context-backdrop[^>]*data-context-close/);
   assert.match(html, /<details class="reading-menu">[\s\S]*?<section class="reader-settings"/);
 
-  const sameAreaPage = result.wiki.pages.find((candidate) => candidate !== documentPage && candidate.data.legal_area === documentPage.data.legal_area);
-  assert.ok(sameAreaPage, "같은 법률 영역 문서가 있다");
-  const fallbackPage = {
-    ...documentPage,
-    outgoingPages: [],
-    incomingPages: [],
-    reciprocalPages: [],
-    sourcePages: [],
-    sameAreaPages: [sameAreaPage],
-    connectionCounts: { ...documentPage.connectionCounts, direct: 0, incoming: 0, reciprocal: 0, evidence: 0 }
-  };
-  const fallbackHtml = renderPage({
-    page: fallbackPage,
-    rendered: { contentHtml: "<p>연결 패널 회귀 검사</p>", toc: [] },
-    wiki: result.wiki,
-    basePath,
-    siteUrl: "https://example.test/LaborLaw_Wiki",
-    repositoryUrl: "https://github.com/YgHnSIM/LaborLaw_Wiki",
-    repositoryRef: "0123456789abcdef"
-  });
-  const fallbackContext = knowledgeContextMarkup(fallbackHtml);
-  const sameAreaGroup = contextGroupMarkup(fallbackContext, "same-area");
-  assert.match(sameAreaGroup, /같은 법률 영역/);
-  assert.match(sameAreaGroup, /직접 연결이 없어 같은 영역 문서만 표시합니다./);
-  assert.match(sameAreaGroup, new RegExp(`href="${siteHref(basePath, sameAreaPage.route)}"`));
-  assert.doesNotMatch(context, /data-context-group="same-area"/, "직접 연결이 있으면 같은 영역 보완 목록을 숨긴다");
+  assert.match(html, /<article class="[^"]*\bprose\b[^"]*"[^>]*data-reading-article/);
+  const documentRailStart = html.indexOf('class="document-rail"');
+  const articleStart = html.indexOf('<article class="prose"', documentRailStart);
+  assert.ok(documentRailStart >= 0, "문서 우측 레일이 생성된다");
+  assert.ok(html.indexOf('class="article-evidence-trust"', documentRailStart) > documentRailStart, "신뢰 정보는 문서 레일에 들어간다");
+  assert.ok(html.indexOf('class="page-toc"', documentRailStart) > documentRailStart, "데스크톱 목차는 문서 레일에 들어간다");
+  assert.ok(html.indexOf('class="article-evidence-trust"', documentRailStart) < articleStart, "신뢰 정보는 실본문과 분리된다");
+  assert.ok(html.indexOf('class="page-toc"', documentRailStart) < articleStart, "데스크톱 목차는 실본문과 분리된다");
+  assert.ok(html.indexOf('class="evidence-panel"', articleStart) > articleStart, "근거 상세와 인용 앵커는 본문 뒤에서도 유지된다");
+  assert.match(html, /<details class="mobile-toc" data-mobile-toc>/);
+  assert.match(html, /data-toc-link/);
 });
 
-test("출처·홈·분류의 지식 문맥은 위키 연결 모델을 그대로 요약한다", async () => {
-  const sourcePage = result.wiki.pages.find((page) => page.category === "sources" && page.citedBy.length > 0 && page.relatedSources.length > 0);
-  assert.ok(sourcePage, "인용 및 관련 자료가 있는 출처가 있다");
-  const sourceHtml = await fs.readFile(outputPathForRoute(outputDir, sourcePage.route), "utf8");
-  const sourceContext = knowledgeContextMarkup(sourceHtml);
-  for (const [label, value] of [
-    ["근거 사용", sourcePage.citedBy.length],
-    ["관련 자료", sourcePage.relatedSources.length],
-    ["대체 자료", sourcePage.supersedingSource ? 1 : 0]
-  ]) {
-    assert.match(sourceContext, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), label);
-  }
-  const citedBy = contextGroupMarkup(sourceContext, "cited-by");
-  const relatedSources = contextGroupMarkup(sourceContext, "related-sources");
-  assert.match(citedBy, new RegExp(`data-context-count>${sourcePage.citedBy.length}<\\/span>`));
-  assert.equal((citedBy.match(/class="context-link-title"/g) ?? []).length, sourcePage.citedBy.length);
-  assert.match(relatedSources, new RegExp(`data-context-count>${sourcePage.relatedSources.length}<\\/span>`));
-  assert.equal((relatedSources.match(/class="context-link-title"/g) ?? []).length, sourcePage.relatedSources.length);
-
+test("홈·문서·분류는 연구 데스크 훅을 배치하고 검색 계약과 분리한다", async () => {
   const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
-  const homeContext = knowledgeContextMarkup(homeHtml);
-  const contentPageCount = result.wiki.pages.filter((page) => page.category !== "meta").length;
-  const connections = result.wiki.stats.connections;
-  for (const [label, value] of [
-    ["본문 연결 문서", `${connections.directConnectedPages}/${contentPageCount}`],
-    ["직접 연결", connections.directLinks],
-    ["근거 연결", connections.evidenceLinks],
-    ["본문 링크 없음", connections.directIsolatedPages]
-  ]) {
-    assert.match(homeContext, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), label);
-  }
+  assert.match(homeHtml, /class="[^"]*\bresearch-workbench\b[^"]*"/);
+  assert.match(homeHtml, /data-issue-tabs/);
+  assert.equal((homeHtml.match(/\bdata-issue-select\b/g) ?? []).length, result.wiki.researchIssues.length, "홈 탭 수는 쟁점 등록부 수와 같다");
+  assert.equal((homeHtml.match(/\bdata-issue-panel\b/g) ?? []).length, result.wiki.researchIssues.length, "홈 패널 수는 쟁점 등록부 수와 같다");
+  assert.equal(
+    (homeHtml.match(/\bdata-issue-stage\b/g) ?? []).length,
+    result.wiki.researchIssues.reduce((sum, issue) => sum + issue.stages.length, 0),
+    "홈은 각 쟁점의 연구 단계를 모두 노출한다"
+  );
+  assert.match(homeHtml, /class="[^"]*\bhome-about\b[^"]*"/);
+  assert.doesNotMatch(homeHtml, /data-context-toggle/, "홈은 별도 문맥 서랍 토글을 두지 않는다");
+  assert.doesNotMatch(homeHtml, /data-research-context/, "홈은 별도 연구 문맥 서랍 대신 리서치 데스크를 사용한다");
 
-  const category = "concepts";
-  const categoryHtml = await fs.readFile(path.join(outputDir, category, "index.html"), "utf8");
-  const categoryContext = knowledgeContextMarkup(categoryHtml);
-  const categoryStats = connections.categories[category];
-  for (const [label, value] of [
-    ["문서", result.wiki.groups[category].length],
-    ["직접 연결", categoryStats.directLinks],
-    ["분류 간", categoryStats.crossCategoryLinks],
-    ["본문 링크 없음", categoryStats.directIsolatedPages]
-  ]) {
-    assert.match(categoryContext, new RegExp(`<dt>${label}<\\/dt><dd>${value}<\\/dd>`), `${category} ${label}`);
-  }
+  const documentPage = result.wiki.pages.find((page) => page.category === "concepts" && page.researchIssueMemberships.length > 0);
+  assert.ok(documentPage, "연구 쟁점 귀속을 가진 개념 문서가 있다");
+  const documentHtml = await fs.readFile(outputPathForRoute(outputDir, documentPage.route), "utf8");
+  assert.match(documentHtml, /data-context-toggle[^>]*aria-controls="knowledge-context"/);
+  assert.match(documentHtml, /data-research-context/);
+  assert.doesNotMatch(researchContextMarkup(documentHtml), /data-context-group=/);
+
+  const categoryHtml = await fs.readFile(path.join(outputDir, "concepts", "index.html"), "utf8");
   assert.match(categoryHtml, /data-context-toggle[^>]*aria-controls="knowledge-context"/);
+  assert.match(categoryHtml, /data-research-context/);
+  assert.doesNotMatch(researchContextMarkup(categoryHtml), /data-context-group=/);
 });
 
-test("전역 메뉴와 지식 문맥은 별도 반응형 서랍으로 동작한다", async () => {
+test("전역 메뉴와 연구 문맥은 별도 반응형 서랍으로 동작한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   const mediumStart = css.indexOf("@media (max-width: 78rem)");
   const narrowStart = css.indexOf("@media (max-width: 58rem)", mediumStart);
@@ -542,9 +596,9 @@ test("본문 글꼴 선택은 리디바탕을 기본값으로 저장하고 복�
 
 test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사용한다", async () => {
   const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
-  assert.match(homeHtml, /data-search-preset-area="집단노동"/);
-  assert.match(homeHtml, new RegExp(`<span>검증 완료</span><div><strong>${result.wiki.stats.statuses.active ?? 0}</strong>개</div>`));
-  assert.match(homeHtml, new RegExp(`<span>검토 필요</span><div><strong>${result.wiki.stats.statuses.review ?? 0}</strong>개</div>`));
+  assert.match(homeHtml, /class="research-workbench"/);
+  assert.match(homeHtml, /class="research-trust-ribbon"/);
+  assert.match(homeHtml, new RegExp(`data-search-preset-status="review"><strong>${result.wiki.stats.statuses.review ?? 0}<\\/strong>개`));
   assert.match(homeHtml, new RegExp(`<time datetime="${result.wiki.stats.knowledgeAsOf}">`));
   assert.match(homeHtml, /data-search-category/);
   assert.match(homeHtml, /data-search-status/);
@@ -556,21 +610,9 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(homeHtml, /<div[^>]+id="search-results"/);
   assert.match(homeHtml, /<div[^>]+role="listbox"/);
   assert.match(homeHtml, /class="search-active-filters" data-search-active-filters aria-label="적용 중인 검색 필터" hidden/);
-  assert.match(homeHtml, /class="home-dashboard home-analysis-collection"/);
-  assert.match(homeHtml, /class="home-collection-stack"/);
-
-  const areaCounts = new Map();
-  for (const page of result.wiki.pages) {
-    if (!page.data.legal_area) continue;
-    const count = areaCounts.get(page.data.legal_area) ?? { total: 0, active: 0, draft: 0, review: 0 };
-    count.total += 1;
-    count[page.data.status] = (count[page.data.status] ?? 0) + 1;
-    areaCounts.set(page.data.legal_area, count);
-  }
-  for (const [area, count] of areaCounts) {
-    const areaPattern = new RegExp(`data-search-preset-area="${area}"[\\s\\S]*?class="area-meter" aria-hidden="true" style="--area-total: ${count.total}; --area-active: ${count.active ?? 0}; --area-draft: ${count.draft ?? 0}; --area-review: ${count.review ?? 0};"[\\s\\S]*?<small>활성 ${count.active ?? 0} · 초안 ${count.draft ?? 0} · 검토 ${count.review ?? 0}<\\/small>`);
-    assert.match(homeHtml, areaPattern);
-  }
+  assert.match(homeHtml, /class="research-queue"/);
+  assert.match(homeHtml, /data-home-queue-select/);
+  assert.match(homeHtml, /data-home-queue-panel/);
 
   const categoryHtml = await fs.readFile(path.join(outputDir, "concepts", "index.html"), "utf8");
   assert.match(categoryHtml, /data-category-filters/);
@@ -596,6 +638,9 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(app, /search-filter-chip/);
   assert.match(app, /search-meta-category/);
   assert.match(app, /search-meta-status/);
+  assert.match(app, /function setupResearchDesk\(\)/);
+  assert.match(app, /tabSelector: "\[data-issue-select\]"/);
+  assert.match(app, /panelSelector: "\[data-issue-panel\]"/);
 
   const worker = await fs.readFile(path.join(rootDir, "site", "assets", "search-worker.js"), "utf8");
   assert.match(worker, /from "\.\/search-core\.js"/);
@@ -612,15 +657,10 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(css, /\.search-dialog\[open\]\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/);
   assert.match(css, /\.search-active-filters\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;/);
   assert.match(css, /\.search-filter-chip\s*\{[^}]*border-radius:\s*999px;/);
-  assert.match(css, /\.area-meter\s*\{[^}]*display:\s*flex;/);
-  assert.match(css, /\.area-meter-active[\s\S]*?flex-grow:\s*var\(--area-active, 0\);/);
+  assert.match(css, /\.research-dossier-panel\[hidden\][\s\S]*?display:\s*none\s*!important;/);
   const mediumStart = css.indexOf("@media (max-width: 78rem)");
   const mobileStart = css.indexOf("@media (max-width: 58rem)");
   assert.ok(mediumStart >= 0 && mobileStart > mediumStart, "78rem 반응형 스타일 구간");
-  const mediumCss = css.slice(mediumStart, mobileStart);
-  assert.match(mediumCss, /\.home-lead,\s*\.home-collections\s*\{[^}]*grid-template-columns:\s*1fr;/);
-  assert.match(mediumCss, /\.home-collection-stack\s*\{[^}]*grid-template-columns:\s*1fr;/);
-  assert.match(mediumCss, /\.home-area-dashboard ul\s*\{[^}]*grid-template-columns:\s*1fr;/);
 });
 
 test("현대 법률 편집물 디자인 계약을 일관되게 사용한다", async () => {
@@ -713,7 +753,7 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   const fontSize = fontStats.reduce((total, stat) => total + stat.size, 0);
   const readingFontSize = fontSize + ridiFont.length;
   const headingFontSize = headingFontStats.reduce((total, stat) => total + stat.size, 0);
-  assert.ok(cssSize < 80_000, `CSS ${cssSize} bytes`);
+  assert.ok(cssSize < 96_000, `CSS ${cssSize} bytes`);
   assert.ok(javascriptSize < 40_000, `JavaScript 합계 ${javascriptSize} bytes`);
   assert.ok(searchSize < searchBudget, `검색 색인 ${searchSize}/${searchBudget} bytes`);
   assert.ok(readingFontSize < 3_200_000, `본문 글꼴 ${readingFontSize} bytes`);

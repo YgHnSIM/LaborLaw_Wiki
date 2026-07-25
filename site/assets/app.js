@@ -658,6 +658,87 @@ function setupCategoryFilters() {
   apply(false);
 }
 
+function setupResearchTabs({ tabSelector, panelSelector, idAttribute, hashPrefix = "" }) {
+  const tabs = [...document.querySelectorAll(tabSelector)];
+  const panels = [...document.querySelectorAll(panelSelector)];
+  if (!tabs.length || !panels.length) return null;
+
+  const panelById = new Map(panels.map((panel) => [panel.dataset[idAttribute], panel]));
+  const tabById = new Map(tabs.map((tab) => [tab.dataset[idAttribute], tab]));
+  const firstId = tabs[0].dataset[idAttribute];
+  let currentId = firstId;
+
+  const validId = (id) => tabById.has(id) && panelById.has(id);
+  const select = (id, { focus = false, updateHash = false } = {}) => {
+    const nextId = validId(id) ? id : firstId;
+    currentId = nextId;
+    tabs.forEach((tab) => {
+      const active = tab.dataset[idAttribute] === nextId;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focus) tab.focus({ preventScroll: true });
+    });
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset[idAttribute] !== nextId;
+    });
+    if (updateHash && hashPrefix) {
+      const url = new URL(window.location.href);
+      url.hash = `${hashPrefix}${encodeURIComponent(nextId)}`;
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    return nextId;
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => select(tab.dataset[idAttribute], { updateHash: Boolean(hashPrefix) }));
+    tab.addEventListener("keydown", (event) => {
+      const keys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      let nextIndex = index;
+      if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = tabs.length - 1;
+      else if (event.key === "ArrowUp" || event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+      else nextIndex = (index + 1) % tabs.length;
+      select(tabs[nextIndex].dataset[idAttribute], { focus: true, updateHash: Boolean(hashPrefix) });
+    });
+  });
+
+  return {
+    select,
+    selectFromHash() {
+      if (!hashPrefix || !window.location.hash.startsWith(`#${hashPrefix}`)) return select(currentId);
+      let id = window.location.hash.slice(hashPrefix.length + 1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        id = firstId;
+      }
+      return select(id);
+    }
+  };
+}
+
+function setupResearchDesk() {
+  const controls = setupResearchTabs({
+    tabSelector: "[data-issue-select]",
+    panelSelector: "[data-issue-panel]",
+    idAttribute: "issueId",
+    hashPrefix: "issue-"
+  });
+  if (!controls) return;
+  controls.selectFromHash();
+  window.addEventListener("hashchange", () => controls.selectFromHash());
+}
+
+function setupHomeQueue() {
+  setupResearchTabs({
+    tabSelector: "[data-home-queue-select]",
+    panelSelector: "[data-home-queue-panel]",
+    idAttribute: "queueId"
+  });
+}
+
 function setupReadingCoordinates() {
   const article = document.querySelector("[data-reading-article]");
   if (!article) return;
@@ -785,6 +866,8 @@ setupBodyFontPicker();
 setupNavigationDrawers();
 setupSearch();
 setupCategoryFilters();
+setupResearchDesk();
+setupHomeQueue();
 setupOverflowTables();
 setupEvidenceCitations();
 if ("requestIdleCallback" in window) window.requestIdleCallback(setupReadingCoordinates, { timeout: 700 });

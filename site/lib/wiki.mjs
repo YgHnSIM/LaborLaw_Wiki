@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
+import { RESEARCH_ISSUES } from "./research-issues.mjs";
 import { extractWikiLinks, replaceWikiLinks, stripSourceCitations } from "./wiki-syntax.mjs";
 
 export { extractWikiLinks };
@@ -218,6 +219,150 @@ function sourceCount(data, category) {
   return data.source_refs.length;
 }
 
+function researchIssueError(issueId, stageId, message) {
+  const location = stageId ? `${issueId}/${stageId}` : issueId;
+  return new Error(`research issue ${location}: ${message}`);
+}
+
+function addResearchIssueMembership(membershipsByRoute, page, issue, stageIds) {
+  const memberships = membershipsByRoute.get(page.route);
+  if (!memberships) throw new Error(`research issue ${issue.id}: 알 수 없는 문서 경로 ${page.route}`);
+  let membership = memberships.find((candidate) => candidate.issue === issue);
+  if (!membership) {
+    membership = { issue, stageIds: [] };
+    memberships.push(membership);
+  }
+  for (const stageId of stageIds) {
+    if (!membership.stageIds.includes(stageId)) membership.stageIds.push(stageId);
+  }
+}
+
+function resolveResearchIssues(pages, titles) {
+  if (RESEARCH_ISSUES.length !== 9) {
+    throw new Error(`research issues: 9개여야 하지만 ${RESEARCH_ISSUES.length}개입니다.`);
+  }
+
+  const membershipsByRoute = new Map(pages.map((page) => [page.route, []]));
+  const issueIds = new Set();
+  const issueOrder = new Map();
+  const resolvedIssues = [];
+
+  for (const rawIssue of RESEARCH_ISSUES) {
+    const issueId = String(rawIssue?.id ?? "");
+    if (!/^[a-z][a-z0-9-]*$/.test(issueId)) {
+      throw new Error(`research issues: 잘못된 안정 ID ${issueId || "(빈 값)"}`);
+    }
+    if (issueIds.has(issueId)) throw new Error(`research issues: 중복 ID ${issueId}`);
+    if (!rawIssue.question || !rawIssue.description) {
+      throw researchIssueError(issueId, "", "question과 description이 필요합니다.");
+    }
+    if (!Array.isArray(rawIssue.stages) || !rawIssue.stages.length) {
+      throw researchIssueError(issueId, "", "하나 이상의 stage가 필요합니다.");
+    }
+
+    issueIds.add(issueId);
+    const issue = {
+      id: issueId,
+      question: String(rawIssue.question),
+      description: String(rawIssue.description),
+      stages: [],
+      pages: [],
+      documentCount: 0,
+      analysisCount: 0,
+      officialSourceCount: 0,
+      reviewCount: 0,
+      primaryPage: null
+    };
+    const stageIds = new Set();
+    const issueRoutes = new Set();
+
+    for (const rawStage of rawIssue.stages) {
+      const stageId = String(rawStage?.id ?? "");
+      if (!/^[a-z][a-z0-9-]*$/.test(stageId)) {
+        throw researchIssueError(issueId, stageId, "잘못된 stage ID입니다.");
+      }
+      if (stageIds.has(stageId)) throw researchIssueError(issueId, stageId, "stage ID가 중복됩니다.");
+      if (!rawStage.label || !Array.isArray(rawStage.pageRefs) || !rawStage.pageRefs.length) {
+        throw researchIssueError(issueId, stageId, "label과 하나 이상의 pageRefs가 필요합니다.");
+      }
+      stageIds.add(stageId);
+
+      const stageTitleKeys = new Set();
+      const stagePages = rawStage.pageRefs.map((pageRef) => {
+        const title = String(pageRef ?? "");
+        const normalizedTitle = normalizeLookup(title);
+        if (!normalizedTitle || stageTitleKeys.has(normalizedTitle)) {
+          throw researchIssueError(issueId, stageId, `중복되었거나 비어 있는 페이지 제목 ${title || "(빈 값)"}`);
+        }
+        stageTitleKeys.add(normalizedTitle);
+        const page = titles.get(normalizedTitle);
+        if (!page) throw researchIssueError(issueId, stageId, `존재하지 않는 페이지 제목 ${title}`);
+        if (page.data.title !== title) {
+          throw researchIssueError(issueId, stageId, `별칭 대신 실제 페이지 제목을 사용해야 합니다: ${title}`);
+        }
+        if (page.category === "sources") {
+          throw researchIssueError(issueId, stageId, `출처 페이지는 직접 등록할 수 없습니다: ${title}`);
+        }
+        return page;
+      });
+
+      issue.stages.push({ id: stageId, label: String(rawStage.label), pages: stagePages });
+      for (const page of stagePages) {
+        addResearchIssueMembership(membershipsByRoute, page, issue, [stageId]);
+        if (!issueRoutes.has(page.route)) {
+          issueRoutes.add(page.route);
+          issue.pages.push(page);
+        }
+      }
+    }
+
+    if (!issue.pages.length) throw researchIssueError(issueId, "", "해결된 페이지가 없습니다.");
+    const officialSources = new Set();
+    for (const page of issue.pages) {
+      for (const source of page.sourcePages) {
+        if (source.data.source_type.startsWith("official_")) officialSources.add(source);
+      }
+    }
+    issue.documentCount = issue.pages.length;
+    issue.analysisCount = issue.pages.filter((page) => page.category === "analyses").length;
+    issue.officialSourceCount = officialSources.size;
+    issue.reviewCount = issue.pages.filter((page) => page.data.status === "review").length;
+    issue.primaryPage = issue.pages[0];
+    issueOrder.set(issue.id, resolvedIssues.length);
+    resolvedIssues.push(issue);
+  }
+
+  for (const source of pages.filter((page) => page.category === "sources")) {
+    const sourceMemberships = new Map();
+    for (const citingPage of source.citedBy) {
+      for (const membership of membershipsByRoute.get(citingPage.route) ?? []) {
+        const stageIds = sourceMemberships.get(membership.issue) ?? new Set();
+        membership.stageIds.forEach((stageId) => stageIds.add(stageId));
+        sourceMemberships.set(membership.issue, stageIds);
+      }
+    }
+    for (const [issue, sourceStageIds] of sourceMemberships) {
+      const orderedStageIds = issue.stages
+        .map((stage) => stage.id)
+        .filter((stageId) => sourceStageIds.has(stageId));
+      addResearchIssueMembership(membershipsByRoute, source, issue, orderedStageIds);
+    }
+  }
+
+  for (const page of pages) {
+    const memberships = membershipsByRoute.get(page.route);
+    memberships.sort((left, right) => issueOrder.get(left.issue.id) - issueOrder.get(right.issue.id));
+    for (const membership of memberships) {
+      const stageOrder = new Map(membership.issue.stages.map((stage, index) => [stage.id, index]));
+      membership.stageIds.sort((left, right) => stageOrder.get(left) - stageOrder.get(right));
+    }
+    page.researchIssueMemberships = memberships;
+    page.researchIssueIds = memberships.map((membership) => membership.issue.id);
+  }
+
+  return { researchIssues: resolvedIssues, researchIssueMemberships: membershipsByRoute };
+}
+
 async function listMarkdownFiles(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const results = [];
@@ -263,26 +408,19 @@ export async function loadWiki(rootDir) {
       citedBy: [],
       relatedSources: [],
       supersedingSource: null,
-      outgoingPages: [],
-      incomingPages: [],
-      reciprocalPages: [],
-      sameAreaPages: [],
-      connectionCounts: {
-        direct: 0,
-        incoming: 0,
-        reciprocal: 0,
-        evidence: 0,
-        sourceLineage: 0
-      }
+      researchIssueIds: [],
+      researchIssueMemberships: []
     });
   }
 
   const routeSet = new Set();
   const lookup = new Map();
+  const titles = new Map();
   const sourcesById = new Map();
   for (const page of pages) {
     if (routeSet.has(page.route)) throw new Error(`중복 URL: ${page.route}`);
     routeSet.add(page.route);
+    titles.set(normalizeLookup(page.data.title), page);
     const keys = [page.stem, page.data.title, ...page.data.aliases];
     for (const key of keys) {
       const normalized = normalizeLookup(key);
@@ -316,17 +454,12 @@ export async function loadWiki(rootDir) {
       page.supersedingSource = sourcesById.get(page.data.superseded_by);
       if (!page.supersedingSource) throw new Error(`${page.relativePath}: 존재하지 않는 superseded_by ${page.data.superseded_by}`);
     }
-    const outgoingByRoute = new Map();
     for (const link of page.wikiLinks) {
       if (!link.target) continue;
-      const target = lookup.get(normalizeLookup(link.target));
-      if (!target) {
+      if (!lookup.get(normalizeLookup(link.target))) {
         throw new Error(`${page.relativePath}: 해소되지 않는 위키링크 ${link.raw}`);
       }
-      if (target !== page) outgoingByRoute.set(target.route, target);
     }
-    page.outgoingPages = [...outgoingByRoute.values()];
-    for (const target of page.outgoingPages) target.incomingPages.push(page);
   }
 
   const collator = new Intl.Collator("ko-KR", { numeric: true, sensitivity: "base" });
@@ -337,23 +470,9 @@ export async function loadWiki(rootDir) {
   for (const page of pages) {
     const byTitle = (a, b) => collator.compare(a.data.title, b.data.title);
     page.citedBy.sort(byTitle);
-    page.outgoingPages.sort(byTitle);
-    page.incomingPages.sort(byTitle);
-    const outgoingRoutes = new Set(page.outgoingPages.map((target) => target.route));
-    page.reciprocalPages = page.incomingPages.filter((source) => outgoingRoutes.has(source.route));
-    page.sameAreaPages = page.data.legal_area
-      ? pages
-        .filter((candidate) => candidate !== page && candidate.data.legal_area === page.data.legal_area)
-        .sort(byTitle)
-      : [];
-    page.connectionCounts = {
-      direct: page.outgoingPages.length,
-      incoming: page.incomingPages.length,
-      reciprocal: page.reciprocalPages.length,
-      evidence: page.sourcePages.length,
-      sourceLineage: page.relatedSources.length + (page.supersedingSource ? 1 : 0)
-    };
   }
+
+  const { researchIssues, researchIssueMemberships } = resolveResearchIssues(pages, titles);
 
   const statusCounts = pages.reduce((counts, page) => {
     counts[page.data.status] = (counts[page.data.status] ?? 0) + 1;
@@ -363,42 +482,13 @@ export async function loadWiki(rootDir) {
   const contentPages = pages.filter((page) => page.category !== "meta");
   const latestContentUpdated = contentPages.map((page) => page.data.updated).filter(Boolean).sort().at(-1) ?? "";
   const knowledgeAsOf = contentPages.map((page) => page.data.as_of_date).filter(Boolean).sort().at(-1) ?? "";
-  const hasKnowledgeConnection = (page) => page.outgoingPages.length
-    || page.incomingPages.length
-    || page.sourcePages.length
-    || page.citedBy.length
-    || page.relatedSources.length
-    || page.supersedingSource;
-  const hasDirectDocumentConnection = (page) => page.outgoingPages.length || page.incomingPages.length;
-  const categoryConnectionStats = Object.fromEntries(CATEGORY_ORDER.map((category) => {
-    const categoryPages = groups[category];
-    const directLinks = categoryPages.reduce((sum, page) => sum + page.outgoingPages.length, 0);
-    const crossCategoryLinks = categoryPages.reduce((sum, page) => sum + page.outgoingPages.filter((target) => target.category !== category).length, 0);
-    const evidenceLinks = categoryPages.reduce((sum, page) => sum + page.sourcePages.length, 0);
-    const isolatedPages = categoryPages.filter((page) => !hasKnowledgeConnection(page)).length;
-    const directIsolatedPages = categoryPages.filter((page) => !hasDirectDocumentConnection(page)).length;
-    const targetCategories = categoryPages.reduce((counts, page) => {
-      for (const target of page.outgoingPages) {
-        if (target.category === category) continue;
-        counts[target.category] = (counts[target.category] ?? 0) + 1;
-      }
-      return counts;
-    }, {});
-    return [category, { directLinks, crossCategoryLinks, evidenceLinks, isolatedPages, directIsolatedPages, targetCategories }];
-  }));
-  const directLinks = contentPages.reduce((sum, page) => sum + page.outgoingPages.length, 0);
-  const evidenceLinks = contentPages.reduce((sum, page) => sum + page.sourcePages.length, 0);
-  const sourceLineageLinks = groups.sources.reduce((sum, page) => sum + page.relatedSources.length + (page.supersedingSource ? 1 : 0), 0);
-  const connectedPages = contentPages.filter(hasKnowledgeConnection).length;
-  const isolatedPages = contentPages.length - connectedPages;
-  const directConnectedPages = contentPages.filter(hasDirectDocumentConnection).length;
-  const directIsolatedPages = contentPages.length - directConnectedPages;
-  const crossCategoryLinks = contentPages.reduce((sum, page) => sum + page.outgoingPages.filter((target) => target.category !== page.category).length, 0);
 
   return {
     pages,
     groups,
     lookup,
+    researchIssues,
+    researchIssueMemberships,
     sourcesById,
     stats: {
       pages: pages.length,
@@ -410,18 +500,7 @@ export async function loadWiki(rootDir) {
       statuses: statusCounts,
       latestUpdated,
       latestContentUpdated,
-      knowledgeAsOf,
-      connections: {
-        directLinks,
-        evidenceLinks,
-        sourceLineageLinks,
-        connectedPages,
-        isolatedPages,
-        directConnectedPages,
-        directIsolatedPages,
-        crossCategoryLinks,
-        categories: categoryConnectionStats
-      }
+      knowledgeAsOf
     }
   };
 }

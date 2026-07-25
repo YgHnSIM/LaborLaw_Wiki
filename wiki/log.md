@@ -340,6 +340,13 @@ source_refs: []
 - `site/assets/styles.css`, `site/assets/app.js`에서 78rem 전역 메뉴와 58rem 우측 지식 연결 패널을 분리하고, 키보드·포커스·닫기·반응형 동작을 유지함.
 - `site/tests/build.test.mjs`와 `wiki/log.md`의 연결 패널 회귀·감사기록을 갱신하고 데스크톱·중간·모바일 화면에서 탐색과 연결 상태를 확인함.
 
+## [2026-07-26] update | 쟁점 중심 리서치 데스크 개편
+
+- `site/lib/research-issues.mjs`에 9개 쟁점의 안정 ID, 실제 문서 제목과 조사 단계를 등록하고, `site/lib/wiki.mjs`에서 해소·중복·빈 단계 검증과 문서·출처별 쟁점 귀속을 빌드 시 계산했으며 `wiki/log.md`에 개편 기록을 추가함.
+- `site/lib/wiki.mjs`, `site/templates.mjs`에서 기존 직접·역·상호 연결과 같은 영역 대체 목록, 연결 통계를 제거하고, 좌측 패널을 문서 탐색 순서를 명시한 쟁점 경로로 교체함.
+- `site/templates.mjs`, `site/assets/app.js`, `site/assets/styles.css`에서 홈을 질문 탭·조사 사건철·실제 근거 집계·업데이트 탭을 갖는 리서치 데스크로 압축하고, 위키 운영 본문은 접힌 상세 영역으로 보존함.
+- `site/templates.mjs`, `site/assets/styles.css`, `site/tests/build.test.mjs`에서 문서의 신뢰정보와 목차를 오른쪽 문서 레일로 이동하고, 기존 검색·목차·모바일 서랍·근거 앵커·글꼴 선택 계약을 유지하도록 웹 회귀 검사를 갱신함.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
