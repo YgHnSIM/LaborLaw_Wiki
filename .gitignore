@@ -11,6 +11,7 @@ Desktop.ini
 # Editors and local environments
 .vscode/
 .idea/
+.codex-remote-attachments/
 *.swp
 *.swo
 *.tmp
@@ -30,6 +31,9 @@ venv/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Temporary workspaces
+tmp/
 
 # Static site build
 node_modules/

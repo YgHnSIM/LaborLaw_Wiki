@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: [로그, 변경 이력]
 tags: [type/meta, domain/labor-law, status/active]
 created: 2026-06-01
-updated: 2026-07-20
+updated: 2026-07-25
 status: active
 source_refs: []
 ---
@@ -318,6 +318,13 @@ source_refs: []
 - `site/tests/build.test.mjs`의 모바일 문서 메뉴 검사를 고정된 개념 문서 수 대신 실제 위키 메타데이터에서 계산한 개념 수와 비교하도록 수정함.
 - 검색 색인 예산을 600KB의 기존 하한과 전체 문서당 3.6KB 중 큰 값으로 계산해 콘텐츠 증가를 허용하면서 문서당 색인 비대화는 계속 검사하도록 보정함.
 - `wiki/log.md`에 노동관행 자료 반영 뒤 발생한 GitHub Pages 웹 테스트 실패 원인과 회귀검사 보정 범위를 기록함.
+
+## [2026-07-25] maintenance | 리팩터링 후 생성물·임시 파일 정리
+
+- 추적 파일의 코드 참조, Git 상태, 빈 디렉터리와 중복·임시 이름을 교차 점검하고 리팩터링 모듈·테스트·정적 자산이 모두 실제 실행 경로에서 사용됨을 확인함.
+- 로컬 빌드·검토 생성물인 `_site/`, `output/`, `.playwright-cli/`, `node_modules/`, Python `__pycache__/`와 빈 `.agents/`, `tmp/`를 제거함.
+- 프로젝트와 무관한 `.codex-remote-attachments/` 캐시를 제거하고 재생성을 추적하지 않도록 `.gitignore`에 `.codex-remote-attachments/`와 `tmp/`를 추가함.
+- `.obsidian/`의 사용자 설정과 `raw/` 원본은 보존하고 위키 린터, Python·Node 테스트와 웹 빌드로 기능을 검증함.
 
 ## 관련 항목
 
