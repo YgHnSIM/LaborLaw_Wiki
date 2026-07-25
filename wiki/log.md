@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: [로그, 변경 이력]
 tags: [type/meta, domain/labor-law, status/active]
 created: 2026-06-01
-updated: 2026-07-25
+updated: 2026-07-26
 status: active
 source_refs: []
 ---
@@ -325,6 +325,13 @@ source_refs: []
 - 로컬 빌드·검토 생성물인 `_site/`, `output/`, `.playwright-cli/`, `node_modules/`, Python `__pycache__/`와 빈 `.agents/`, `tmp/`를 제거함.
 - 프로젝트와 무관한 `.codex-remote-attachments/` 캐시를 제거하고 재생성을 추적하지 않도록 `.gitignore`에 `.codex-remote-attachments/`와 `tmp/`를 추가함.
 - `.obsidian/`의 사용자 설정과 `raw/` 원본은 보존하고 위키 린터, Python·Node 테스트와 웹 빌드로 기능을 검증함.
+
+## [2026-07-26] update | 웹 디자인 개편
+
+- `site/assets/styles.css`를 현대 법률 편집물형 토큰과 반응형 셸로 재구성해 문서 면·상태색·목차·근거 패널·분류 카드·검색 화면의 시각 위계를 정리함.
+- `site/templates.mjs`에서 홈 소개와 신뢰 현황을 비대칭 리드 영역으로 통합하고, 영역별 상태 막대·문서 히어로 신뢰정보·의미 상태 클래스를 추가함.
+- `site/assets/app.js`에서 검색 활성 필터 칩의 생성·개별 해제·URL 즉시 동기화와 결과 메타 배지를 구현하면서 기존 검색 Worker·키보드·모바일 목차 계약을 유지함.
+- `site/build.mjs`, 파비콘, `site/tests/build.test.mjs`와 `wiki/log.md`를 새 코발트·먹색 브랜드 계약과 회귀 검사에 맞게 갱신함.
 
 ## 관련 항목
 

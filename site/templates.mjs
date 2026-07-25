@@ -58,8 +58,26 @@ function pageLabel(page) {
   return page.route === "/" ? "홈" : page.data.title;
 }
 
+function pageStatusTone(status) {
+  if (status === "active") return "current";
+  if (status === "review") return "review";
+  if (status === "draft" || status === "archived") return "muted";
+  return "warning";
+}
+
+function legalStatusTone(status) {
+  if (status === "current") return "current";
+  if (status === "uncertain") return "warning";
+  return "muted";
+}
+
 function pageStatusBadge(page) {
-  return `<span class="status-badge status-${escapeAttr(page.data.status)}">${escapeHtml(statusLabel(page.data.status))}</span>`;
+  return `<span class="status-badge status-${escapeAttr(page.data.status)} status-tone-${pageStatusTone(page.data.status)}">${escapeHtml(statusLabel(page.data.status))}</span>`;
+}
+
+function legalStatusBadge(page) {
+  if (!page.data.legal_status) return "";
+  return `<span class="legal-status legal-status-${escapeAttr(page.data.legal_status)} status-tone-${legalStatusTone(page.data.legal_status)}">${escapeHtml(legalStatusLabel(page.data.legal_status))}</span>`;
 }
 
 function renderTopbar({ basePath, repositoryUrl }) {
@@ -156,6 +174,7 @@ function renderSearchDialog(basePath) {
         <p class="search-guidance" id="search-guidance">제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.</p>
         <button type="button" class="search-filter-toggle" data-search-filter-toggle aria-expanded="false" aria-controls="search-filter-sheet" aria-label="필터, 적용 없음"><span>필터</span><strong data-search-filter-summary>0</strong></button>
       </div>
+      <div class="search-active-filters" data-search-active-filters aria-label="적용 중인 검색 필터" hidden></div>
       <section class="search-filter-sheet" id="search-filter-sheet" data-search-filter-panel aria-labelledby="search-filter-sheet-title" hidden>
         <header class="search-filter-sheet-head"><strong id="search-filter-sheet-title">필터 편집</strong></header>
         <div class="search-filters" aria-label="검색 필터">
@@ -193,13 +212,13 @@ function renderFooter({ basePath, stats }) {
 
 function renderStatusNotice(page) {
   if (page.data.status === "review") {
-    return `<aside class="status-notice" role="note"><strong>검토 중</strong><span>이 문서는 확인이 필요한 쟁점 또는 모순 경고를 포함합니다.</span></aside>`;
+    return `<aside class="status-notice status-tone-review" role="note"><strong>검토 중</strong><span>이 문서는 확인이 필요한 쟁점 또는 모순 경고를 포함합니다.</span></aside>`;
   }
   if (page.data.status === "draft") {
-    return `<aside class="status-notice" role="note"><strong>초안</strong><span>이 문서는 구조 또는 근거를 보강 중입니다.</span></aside>`;
+    return `<aside class="status-notice status-tone-muted" role="note"><strong>초안</strong><span>이 문서는 구조 또는 근거를 보강 중입니다.</span></aside>`;
   }
   if (page.data.status === "archived") {
-    return `<aside class="status-notice" role="note"><strong>보관 문서</strong><span>현재 설명이 아니라 역사적 기록으로 유지되는 문서입니다.</span></aside>`;
+    return `<aside class="status-notice status-tone-muted" role="note"><strong>보관 문서</strong><span>현재 설명이 아니라 역사적 기록으로 유지되는 문서입니다.</span></aside>`;
   }
   return "";
 }
@@ -215,7 +234,7 @@ function renderEvidenceStrip(page) {
   add("시행일", renderTime(page.data.effective_date));
   if (!page.data.effective_date) add("결정일", renderTime(page.data.decision_date));
   add("최종 수정", renderTime(page.data.updated));
-  add("법적 상태", escapeHtml(legalStatusLabel(page.data.legal_status)));
+  add("법적 상태", legalStatusBadge(page), "fact-legal-status");
   add("근거 확신", escapeHtml(confidenceLabel(page.data.confidence)));
   if (page.sourceCount) {
     const value = page.category === "sources"
@@ -223,7 +242,7 @@ function renderEvidenceStrip(page) {
       : `${page.sourceCount}개${page.officialSourceCount ? ` · 공식 ${page.officialSourceCount}` : ""}`;
     add(page.category === "sources" ? "원문 기록" : "연결 근거", escapeHtml(value));
   }
-  add("다음 검토", renderTime(page.data.next_review_date), "fact-review-date");
+  add("다음 검토", renderTime(page.data.next_review_date), "fact-review-date status-tone-review");
   return `<dl class="page-facts evidence-strip" aria-label="문서 신뢰 정보">${facts.join("")}</dl>`;
 }
 
@@ -360,7 +379,13 @@ function renderAreaDashboard(wiki) {
   });
   return `<section class="home-dashboard home-area-dashboard" aria-labelledby="home-area-title">
     <header><span>01</span><div><h2 id="home-area-title">영역별 현황</h2><p>문서의 법률 영역과 현재 검토 상태를 함께 봅니다.</p></div></header>
-    <ul>${areas.map(([area, count]) => `<li><button type="button" data-search-open data-search-preset-area="${escapeAttr(area)}"><strong>${escapeHtml(area)}</strong><span>${count.total}개</span><small>활성 ${count.active || 0} · 초안 ${count.draft || 0} · 검토 ${count.review || 0}</small></button></li>`).join("")}</ul>
+    <ul>${areas.map(([area, count]) => {
+      const active = Number.isInteger(count.active) ? count.active : 0;
+      const draft = Number.isInteger(count.draft) ? count.draft : 0;
+      const review = Number.isInteger(count.review) ? count.review : 0;
+      const total = Number.isInteger(count.total) ? count.total : 0;
+      return `<li><button type="button" data-search-open data-search-preset-area="${escapeAttr(area)}"><strong>${escapeHtml(area)}</strong><span>${total}개</span><span class="area-meter" aria-hidden="true" style="--area-total: ${total}; --area-active: ${active}; --area-draft: ${draft}; --area-review: ${review};"><span class="area-meter-segment area-meter-active"></span><span class="area-meter-segment area-meter-draft"></span><span class="area-meter-segment area-meter-review"></span></span><small>활성 ${active} · 초안 ${draft} · 검토 ${review}</small></button></li>`;
+    }).join("")}</ul>
   </section>`;
 }
 
@@ -378,9 +403,11 @@ function renderHomeCollections(wiki, basePath) {
     .slice(0, 6);
   const list = (pages, kind) => pages.map((page, index) => `<li><a href="${siteHref(basePath, page.route)}"><span>${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(page.data.title)}</strong><small>${kind === "analysis" ? `근거 ${page.sourceCount} · 공식 ${page.officialSourceCount}` : kind === "recent" ? `${escapeHtml(CATEGORY_META[page.category].shortLabel)} · 기준 ${escapeHtml(displayDate(page.data.as_of_date))}` : `${escapeHtml(CATEGORY_META[page.category].shortLabel)} · 수정 ${escapeHtml(displayDate(page.data.updated))}`}</small></div></a></li>`).join("");
   return `<div class="home-collections">
-    <section class="home-dashboard" aria-labelledby="home-analysis-title"><header><span>02</span><div><h2 id="home-analysis-title">근거 연결이 많은 분석</h2><p>여러 출처를 종합한 분석 문서입니다.</p></div></header><ol>${list(analyses, "analysis")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/analyses/")}">분석 전체 보기</a></section>
-    <section class="home-dashboard" aria-labelledby="home-recent-title"><header><span>03</span><div><h2 id="home-recent-title">최근 검증 문서</h2><p>명시된 지식 기준일과 공식 근거 수를 기준으로 정렬했습니다.</p></div></header><ol>${list(recent, "recent")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/catalog/")}">전체 색인 보기</a></section>
-    <section class="home-dashboard" aria-labelledby="home-review-title"><header><span>04</span><div><h2 id="home-review-title">검토가 필요한 문서</h2><p>모순 경고나 추가 확인 사항이 남아 있습니다.</p></div></header><ol>${list(review, "review")}</ol>${review.length < (wiki.stats.statuses.review ?? 0) ? `<button class="dashboard-more" type="button" data-search-open data-search-preset-status="review">검토 문서 전체 보기</button>` : ""}</section>
+    <section class="home-dashboard home-analysis-collection" aria-labelledby="home-analysis-title"><header><span>02</span><div><h2 id="home-analysis-title">근거 연결이 많은 분석</h2><p>여러 출처를 종합한 분석 문서입니다.</p></div></header><ol>${list(analyses, "analysis")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/analyses/")}">분석 전체 보기</a></section>
+    <div class="home-collection-stack">
+      <section class="home-dashboard home-recent-collection" aria-labelledby="home-recent-title"><header><span>03</span><div><h2 id="home-recent-title">최근 검증 문서</h2><p>명시된 지식 기준일과 공식 근거 수를 기준으로 정렬했습니다.</p></div></header><ol>${list(recent, "recent")}</ol><a class="dashboard-more" href="${siteHref(basePath, "/catalog/")}">전체 색인 보기</a></section>
+      <section class="home-dashboard home-review-collection" aria-labelledby="home-review-title"><header><span>04</span><div><h2 id="home-review-title">검토가 필요한 문서</h2><p>모순 경고나 추가 확인 사항이 남아 있습니다.</p></div></header><ol>${list(review, "review")}</ol>${review.length < (wiki.stats.statuses.review ?? 0) ? `<button class="dashboard-more" type="button" data-search-open data-search-preset-status="review">검토 문서 전체 보기</button>` : ""}</section>
+    </div>
   </div>`;
 }
 
@@ -409,7 +436,7 @@ function renderHead({ title, description, canonical, basePath, page, siteName, s
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(title)} · ${escapeHtml(siteName)}</title>
     <meta name="description" content="${escapeAttr(description)}">
-    <meta name="theme-color" content="#0000FF">
+    <meta name="theme-color" content="#2547D0">
     ${noindex ? '<meta name="robots" content="noindex,follow">' : ""}
     <link rel="canonical" href="${escapeAttr(canonical)}">
     <link rel="icon" href="${siteHref(basePath, "/assets/favicon.svg")}" type="image/svg+xml">
@@ -426,17 +453,16 @@ function renderHead({ title, description, canonical, basePath, page, siteName, s
     ${structuredData}`;
 }
 
-function renderShell({ wiki, page = null, currentCategory, title, description, canonical, main, basePath, repositoryUrl, siteUrl, initialRail = "문서 개요", pageKind = "page", noindex = false }) {
+function renderShell({ wiki, page = null, currentCategory, title, description, canonical, main, basePath, repositoryUrl, siteUrl, pageKind = "page", noindex = false }) {
   const siteName = "대한민국 노동법 위키";
   return `<!doctype html>
-<html lang="ko" data-base-path="${escapeAttr(basePath)}" data-design="brutalist-gazette" data-body-font="ridibatang">
+<html lang="ko" data-base-path="${escapeAttr(basePath)}" data-design="legal-editorial" data-body-font="ridibatang">
   <head>${renderHead({ title, description, canonical, basePath, page, siteName, siteUrl, pageKind, noindex })}</head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
     ${renderTopbar({ basePath, repositoryUrl })}
     ${renderSidebar({ wiki, currentPage: page, currentCategory, basePath })}
     <div class="page-frame">${main}${renderFooter({ basePath, stats: wiki.stats })}</div>
-    ${page && page.route !== "/" ? `<aside class="reading-rail" aria-live="polite" aria-atomic="true"><span data-rail-index>00</span><span data-rail-title>${escapeHtml(initialRail)}</span></aside>` : ""}
     ${renderSearchDialog(basePath)}
     <script type="module" src="${siteHref(basePath, "/assets/app.js")}"></script>
   </body>
@@ -452,20 +478,31 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
   const aliases = page.data.aliases.length ? `<dl class="aliases"><dt>다른 이름</dt><dd>${page.data.aliases.map((alias) => `<span>${escapeHtml(alias)}</span>`).join("")}</dd></dl>` : "";
   const breadcrumbs = isHome ? "" : `<nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span aria-hidden="true">/</span><a href="${siteHref(basePath, `/${page.category}/`)}">${escapeHtml(category.shortLabel)}</a></nav>`;
   const toc = isHome ? [] : rendered.toc;
-  const main = `<main id="main-content" class="main-content">
-    ${breadcrumbs}
-    <header class="page-hero${isHome ? " is-home" : ""}">
+  const hero = isHome
+    ? `<header class="page-hero is-home">
       <div class="page-folio" aria-hidden="true">${folio}</div>
-      <div class="page-hero-content">
+      <div class="page-hero-content home-hero-content">
         <p class="page-kicker">${escapeHtml(category.label)}</p>
         <h1>${escapeHtml(page.data.title)}</h1>
         ${page.excerpt ? `<p class="page-summary">${escapeHtml(page.excerpt)}</p>` : ""}
-        ${aliases}
-        ${renderEvidenceStrip(page)}
       </div>
-    </header>
+    </header>`
+    : `<header class="page-hero article-hero">
+      <div class="page-folio" aria-hidden="true">${folio}</div>
+      <div class="page-hero-content article-hero-content">
+        <div class="article-hero-intro">
+          <p class="page-kicker">${escapeHtml(category.label)}</p>
+          <h1>${escapeHtml(page.data.title)}</h1>
+          ${page.excerpt ? `<p class="page-summary">${escapeHtml(page.excerpt)}</p>` : ""}
+          ${aliases}
+        </div>
+        <div class="article-evidence-trust page-hero-trust">${renderEvidenceStrip(page)}</div>
+      </div>
+    </header>`;
+  const main = `<main id="main-content" class="main-content">
+    ${breadcrumbs}
+    ${isHome ? `<section class="home-lead" aria-label="위키 개요">${hero}${renderHomeStats(wiki, basePath)}</section>` : hero}
     ${isHome ? renderHomeSearch(basePath) : ""}
-    ${isHome ? renderHomeStats(wiki, basePath) : ""}
     ${isHome ? renderAreaDashboard(wiki) : ""}
     ${isHome ? renderHomeCollections(wiki, basePath) : ""}
     ${renderStatusNotice(page)}
@@ -490,7 +527,6 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
     basePath,
     repositoryUrl,
     siteUrl,
-    initialRail: toc[0]?.title || page.data.title
   });
 }
 
@@ -531,7 +567,6 @@ export function renderCategoryPage({ category, wiki, basePath, siteUrl, reposito
     basePath,
     repositoryUrl,
     siteUrl,
-    initialRail: meta.shortLabel,
     pageKind: "collection"
   });
 }
@@ -551,7 +586,6 @@ export function renderNotFound({ wiki, basePath, siteUrl, repositoryUrl }) {
     basePath,
     repositoryUrl,
     siteUrl,
-    initialRail: "페이지 없음",
     pageKind: "not-found",
     noindex: true
   });

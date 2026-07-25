@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="대한민국 노동법 위키">
-  <rect width="64" height="64" fill="#0000ff"/>
-  <path d="M2 2h60v60H2z" fill="none" stroke="#000000" stroke-width="4"/>
-  <path d="M12 12h10v40H12zM27 22h10v30H27zM42 32h10v20H42z" fill="#ffffff"/>
+  <rect width="64" height="64" fill="#F4F6F8"/>
+  <path d="M2 2h60v60H2z" fill="none" stroke="#273244" stroke-width="4"/>
+  <path d="M12 12h10v40H12zM27 22h10v30H27zM42 32h10v20H42z" fill="#2547D0"/>
 </svg>

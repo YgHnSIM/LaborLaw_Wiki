@@ -117,11 +117,19 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
     assert.match(html, /href="\/LaborLaw_Wiki\/assets\/styles\.css"/);
     assert.match(html, /src="\/LaborLaw_Wiki\/assets\/app\.js"/);
     assert.match(html, /href="https:\/\/example\.test\/LaborLaw_Wiki\//);
-    assert.match(html, /data-design="brutalist-gazette"/);
-    assert.match(html, /<meta name="theme-color" content="#0000FF">/);
+    assert.match(html, /data-design="legal-editorial"/);
+    assert.match(html, /<meta name="theme-color" content="#2547D0">/);
     if (page.route === "/") {
+      const leadStart = html.indexOf('<section class="home-lead"');
+      const searchStart = html.indexOf('<section class="home-search"');
+      const lead = html.slice(leadStart, searchStart);
       const article = html.match(/<article class="prose home-description">([\s\S]*?)<\/article>/)?.[1];
       assert.ok(article, "홈 설명 본문");
+      assert.ok(leadStart >= 0 && searchStart > leadStart, "홈 소개와 신뢰 현황은 검색보다 앞선 하나의 리드 영역에 있다");
+      assert.match(lead, /class="page-hero is-home"/);
+      assert.match(lead, /class="home-stats"/);
+      assert.doesNotMatch(lead, /class="aliases"/);
+      assert.doesNotMatch(lead, /class="page-facts evidence-strip"/);
       assert.match(html, /<p class="page-summary">이 위키는 대한민국 노동법의 법령, 판례, 행정해석/);
       assert.doesNotMatch(article, /대한민국 노동법의 법령, 판례, 행정해석/);
       assert.match(article, /<h2[^>]*>기준일과 현재 상태/);
@@ -135,11 +143,14 @@ test("각 문서는 H1 하나와 GitHub Pages 기준 경로를 사용한다", as
     } else {
       assert.match(html, /class="page-toc"/);
       assert.match(html, /class="mobile-toc"/);
+      assert.match(html, /class="article-evidence-trust page-hero-trust"/);
+      assert.doesNotMatch(html, /class="reading-rail"/);
     }
     assert.match(html, /<dialog[^>]+aria-labelledby="search-dialog-title"/);
     assert.match(html, /data-search-close aria-label="검색 닫기"/);
     assert.match(html, /class="search-filter-toggle"[^>]+data-search-filter-toggle[^>]+aria-expanded="false"[^>]+aria-controls="search-filter-sheet"/);
     assert.match(html, /data-search-filter-summary>0<\/strong>/);
+    assert.match(html, /data-search-active-filters[^>]+hidden/);
     assert.match(html, /<section class="search-filter-sheet" id="search-filter-sheet" data-search-filter-panel[^>]+hidden>/);
     assert.match(html, /data-search-filter-reset disabled>필터 초기화<\/button>/);
     assert.match(html, /data-search-filter-done>결과 보기<\/button>/);
@@ -294,12 +305,17 @@ test("본문 HTML을 실행하지 않고 위키 별칭을 안전한 링크로 �
   assert.match(html, /href="\/LaborLaw_Wiki\/sources\/src-beeda8348a\/"/);
 });
 
-test("문서 메타정보 바의 외곽선을 반응형 행에서도 닫는다", async () => {
+test("문서 히어로는 신뢰정보와 의미 상태를 분리해 표시한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
-  assert.match(css, /\.page-facts\s*\{[^}]*border: 3px solid var\(--ink\);/);
-  assert.match(css, /\.page-facts\s*\{\s*display: inline-grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-  assert.match(css, /\.page-facts > span:nth-child\(even\)\s*\{[^}]*border-left: var\(--rule\);/);
-  assert.match(css, /\.page-facts > span:nth-child\(n \+ 3\)\s*\{[^}]*border-top: var\(--rule\);/);
+  const legalStatusPage = result.wiki.pages.find((page) => page.data.legal_status);
+  const html = await fs.readFile(outputPathForRoute(outputDir, legalStatusPage.route), "utf8");
+  assert.match(html, /class="article-evidence-trust page-hero-trust"><dl class="page-facts evidence-strip"/);
+  assert.match(html, /class="legal-status legal-status-[a-z]+ status-tone-(?:current|muted|warning)"/);
+  assert.match(css, /\.page-hero-content\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(14rem, 18rem\);/);
+  assert.match(css, /\.page-facts\.evidence-strip\s*\{[^}]*display:\s*grid;[^}]*border:\s*1px solid var\(--line\);/);
+  assert.match(css, /\.status-tone-current[\s\S]*?color:\s*var\(--active\);/);
+  assert.match(css, /\.status-tone-review[\s\S]*?color:\s*var\(--review\);/);
+  assert.match(css, /\.status-tone-warning[\s\S]*?color:\s*var\(--danger\);/);
 });
 
 test("모바일 바로 찾기 홀수 격자는 빈 셀의 경계선을 닫는다", async () => {
@@ -311,7 +327,7 @@ test("모바일 바로 찾기 홀수 격자는 빈 셀의 경계선을 닫는다
   const printStart = css.indexOf("@media print", mobileStart);
   assert.ok(mobileStart >= 0 && printStart > mobileStart, "38rem 모바일 스타일 구간");
   const mobileCss = css.slice(mobileStart, printStart);
-  assert.match(mobileCss, /\.home-search-suggestions\[data-has-empty-cell\]::after\s*\{[^}]*content:\s*"";[^}]*border-top:\s*var\(--rule\);[^}]*border-left:\s*var\(--rule\);/);
+  assert.match(mobileCss, /\.home-search-suggestions\[data-has-empty-cell\]::after\s*\{[^}]*content:\s*"";[^}]*border-top:\s*1px solid var\(--line\);[^}]*border-left:\s*1px solid var\(--line\);/);
 });
 
 test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다", async () => {
@@ -320,7 +336,7 @@ test("모바일 근거 패널은 펼침 표시와 제목이 겹치지 않는다"
   const printStart = css.indexOf("@media print", mobileStart);
   assert.ok(mobileStart >= 0 && printStart > mobileStart, "38rem 모바일 스타일 구간");
   const mobileCss = css.slice(mobileStart, printStart);
-  assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*padding-left:\s*3\.6rem;/);
+  assert.match(mobileCss, /\.evidence-panel summary,\s*\.cited-by-panel summary\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto;[^}]*padding:\s*0\.65rem 0\.75rem;/);
 });
 
 test("모바일 문서 메뉴는 하위 문서를 번호와 제목으로 차분하게 구분한다", async () => {
@@ -331,17 +347,16 @@ test("모바일 문서 메뉴는 하위 문서를 번호와 제목으로 차분�
   assert.match(html, new RegExp(`class="sidebar-pages-all"><a[^>]+aria-label="전체 ${conceptCount}개 문서 보기"><span>전체</span><strong>${conceptCount}개 문서 보기</strong>`));
 
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
-  assert.match(css, /\.sidebar-pages a\s*\{[^}]*grid-template-columns:\s*2rem minmax\(0, 1fr\);[^}]*text-decoration:\s*none;/);
-  assert.match(css, /\.sidebar-pages a\.is-active\s*\{[^}]*background:\s*var\(--blue\);[^}]*color:\s*var\(--paper\);/);
-  assert.match(css, /\.sidebar-pages \.sidebar-pages-all\s*\{[^}]*position:\s*sticky;[^}]*border-top:\s*var\(--frame\);/);
-  assert.match(css, /\.sidebar-pages \.sidebar-pages-all a\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*space-between;[^}]*background:\s*var\(--ink\);/);
+  assert.match(css, /\.sidebar-pages a\s*\{[^}]*grid-template-columns:\s*1\.75rem minmax\(0, 1fr\);[^}]*text-decoration:\s*none;/);
+  assert.match(css, /\.sidebar-pages a\.is-active\s*\{[^}]*background:\s*var\(--brand-soft\);[^}]*color:\s*var\(--brand\);/);
+  assert.match(css, /\.sidebar-pages \.sidebar-pages-all\s*\{[^}]*position:\s*sticky;[^}]*border-top:\s*1px solid var\(--line-strong\);/);
+  assert.match(css, /\.sidebar-pages \.sidebar-pages-all a\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*space-between;[^}]*background:\s*var\(--canvas\);/);
 
   const mobileStart = css.indexOf("@media (max-width: 58rem)");
   const compactStart = css.indexOf("@media (max-width: 38rem)", mobileStart);
   assert.ok(mobileStart >= 0 && compactStart > mobileStart, "58rem 모바일 스타일 구간");
   const mobileCss = css.slice(mobileStart, compactStart);
-  assert.match(mobileCss, /\.sidebar-pages li \+ li\s*\{[^}]*border-top:\s*0;/);
-  assert.match(mobileCss, /\.sidebar-pages a\s*\{[^}]*min-height:\s*2\.9rem;/);
+  assert.match(mobileCss, /\.sidebar-pages\s*\{[^}]*max-height:\s*min\(42vh, 22rem\);/);
 });
 
 test("다음 문서 제목은 화살표 공간을 확보한다", async () => {
@@ -368,7 +383,7 @@ test("본문 글꼴 선택은 리디바탕을 기본값으로 저장하고 복�
   assert.match(css, /:root\[data-body-font="maruburi"\]\s*\{[^}]*--font-body:\s*"MaruBuri"/);
   assert.match(css, /:root\[data-body-font="system"\]\s*\{[^}]*--font-body:\s*"Times New Roman"/);
   assert.match(css, /:root\[data-body-font="d2coding"\]\s*\{[^}]*--font-body:\s*"D2Coding"/);
-  assert.match(css, /\.reader-settings select\s*\{[^}]*font-family:\s*var\(--font-body\);/);
+  assert.match(css, /\.reader-settings select,\s*\.category-controls select,\s*\.search-filters select\s*\{[^}]*font-family:\s*var\(--font-body\);/);
 });
 
 test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사용한다", async () => {
@@ -386,6 +401,22 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(homeHtml, /role="combobox"[^>]+aria-controls="search-results"[^>]+aria-expanded="false"/);
   assert.match(homeHtml, /<div[^>]+id="search-results"/);
   assert.match(homeHtml, /<div[^>]+role="listbox"/);
+  assert.match(homeHtml, /class="search-active-filters" data-search-active-filters aria-label="적용 중인 검색 필터" hidden/);
+  assert.match(homeHtml, /class="home-dashboard home-analysis-collection"/);
+  assert.match(homeHtml, /class="home-collection-stack"/);
+
+  const areaCounts = new Map();
+  for (const page of result.wiki.pages) {
+    if (!page.data.legal_area) continue;
+    const count = areaCounts.get(page.data.legal_area) ?? { total: 0, active: 0, draft: 0, review: 0 };
+    count.total += 1;
+    count[page.data.status] = (count[page.data.status] ?? 0) + 1;
+    areaCounts.set(page.data.legal_area, count);
+  }
+  for (const [area, count] of areaCounts) {
+    const areaPattern = new RegExp(`data-search-preset-area="${area}"[\\s\\S]*?class="area-meter" aria-hidden="true" style="--area-total: ${count.total}; --area-active: ${count.active ?? 0}; --area-draft: ${count.draft ?? 0}; --area-review: ${count.review ?? 0};"[\\s\\S]*?<small>활성 ${count.active ?? 0} · 초안 ${count.draft ?? 0} · 검토 ${count.review ?? 0}<\\/small>`);
+    assert.match(homeHtml, areaPattern);
+  }
 
   const categoryHtml = await fs.readFile(path.join(outputDir, "concepts", "index.html"), "utf8");
   assert.match(categoryHtml, /data-category-filters/);
@@ -406,6 +437,11 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(app, /results\.inert = blocksResults/);
   assert.match(app, /dialog\.addEventListener\("cancel"/);
   assert.match(app, /from "\.\/search-core\.js"/);
+  assert.match(app, /data-search-active-filters/);
+  assert.match(app, /renderActiveFilters/);
+  assert.match(app, /search-filter-chip/);
+  assert.match(app, /search-meta-category/);
+  assert.match(app, /search-meta-status/);
 
   const worker = await fs.readFile(path.join(rootDir, "site", "assets", "search-worker.js"), "utf8");
   assert.match(worker, /from "\.\/search-core\.js"/);
@@ -418,49 +454,48 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(css, /content-visibility:\s*auto/);
   assert.doesNotMatch(css, /@view-transition|view-transition-name/);
   assert.match(css, /@media \(prefers-contrast: more\)/);
-  assert.match(css, /\.search-dialog\[open\]\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:\s*auto auto auto minmax\(0, 1fr\);/);
-  assert.match(css, /\.search-filter-sheet\s*\{[^}]*grid-area:\s*4 \/ 1;[^}]*overflow-y:\s*auto;/);
-  assert.match(css, /@media \(max-width: 38rem\) and \(max-height: 42rem\)/);
+  assert.match(css, /\.search-dialog\[open\]\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:\s*auto auto auto auto minmax\(0, 1fr\);/);
+  assert.match(css, /\.search-dialog\[open\]\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/);
+  assert.match(css, /\.search-active-filters\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;/);
+  assert.match(css, /\.search-filter-chip\s*\{[^}]*border-radius:\s*999px;/);
+  assert.match(css, /\.area-meter\s*\{[^}]*display:\s*flex;/);
+  assert.match(css, /\.area-meter-active[\s\S]*?flex-grow:\s*var\(--area-active, 0\);/);
+  const mediumStart = css.indexOf("@media (max-width: 78rem)");
+  const mobileStart = css.indexOf("@media (max-width: 58rem)");
+  assert.ok(mediumStart >= 0 && mobileStart > mediumStart, "78rem 반응형 스타일 구간");
+  const mediumCss = css.slice(mediumStart, mobileStart);
+  assert.match(mediumCss, /\.home-lead,\s*\.home-collections\s*\{[^}]*grid-template-columns:\s*1fr;/);
+  assert.match(mediumCss, /\.home-collection-stack\s*\{[^}]*grid-template-columns:\s*1fr;/);
+  assert.match(mediumCss, /\.home-area-dashboard ul\s*\{[^}]*grid-template-columns:\s*1fr;/);
 });
 
-test("Brutalist 법률 공보형 디자인 토큰을 일관되게 사용한다", async () => {
-  const sourceFiles = [
-    path.join(rootDir, "site", "assets", "styles.css"),
-    path.join(rootDir, "site", "templates.mjs"),
-    path.join(rootDir, "site", "build.mjs"),
-    path.join(rootDir, "site", "assets", "favicon.svg")
-  ];
-  const sources = await Promise.all(sourceFiles.map((file) => fs.readFile(file, "utf8")));
-  const css = sources[0];
-  const combined = sources.join("\n");
-  const allowedColors = new Set(["#000000", "#ffffff", "#0000ff"]);
-  const normalizeHex = (value) => {
-    const hex = value.toLowerCase().slice(1);
-    return `#${hex.length === 3 ? [...hex].map((part) => part.repeat(2)).join("") : hex}`;
-  };
-  for (const color of combined.match(/#[0-9a-f]{3,8}\b/gi) ?? []) {
-    assert.ok(allowedColors.has(normalizeHex(color)), `허용되지 않은 색상 ${color}`);
-  }
-  assert.match(css, /--font-sans:\s*Arial, system-ui, sans-serif;/);
-  assert.match(css, /--font-serif:\s*"Times New Roman", serif;/);
-  assert.match(css, /--font-body:\s*"RIDIBatang", "Times New Roman", serif;/);
-  assert.match(css, /--font-heading:\s*"D2Coding", "Courier New", monospace;/);
-  assert.match(css, /--font-mono:\s*"Courier New", monospace;/);
+test("현대 법률 편집물 디자인 계약을 일관되게 사용한다", async () => {
+  const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
+  const templates = await fs.readFile(path.join(rootDir, "site", "templates.mjs"), "utf8");
+  const favicon = await fs.readFile(path.join(rootDir, "site", "assets", "favicon.svg"), "utf8");
+  for (const token of [
+    "--canvas: #f4f6f8;", "--surface: #ffffff;", "--ink: #111827;", "--ink-muted: #5f6b7a;",
+    "--line: #d6dbe3;", "--line-strong: #273244;", "--brand: #2547d0;", "--brand-soft: #eef2ff;",
+    "--active: #0f766e;", "--review: #b45309;", "--danger: #b42318;", "--archived: #64748b;"
+  ]) assert.ok(css.includes(token), `디자인 토큰 누락: ${token}`);
+  assert.match(templates, /data-design="legal-editorial"/);
+  assert.match(css, /--font-display:\s*"MaruBuri"/);
+  assert.match(css, /--font-body:\s*"RIDIBatang"/);
+  assert.match(css, /--font-meta:\s*"D2Coding"/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"MaruBuri"/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"D2Coding"/);
   assert.match(css, /@font-face[\s\S]*font-family:\s*"RIDIBatang"/);
-  assert.match(css, /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\s*\{[^}]*font-family:\s*var\(--font-heading\);/);
-  assert.match(css, /\.prose h2\s*\{[^}]*font-family:\s*var\(--font-heading\);/);
-  assert.match(css, /--shadow:\s*8px 8px 0 #000;/);
-  assert.match(css, /--shadow-blue:\s*8px 8px 0 #0000ff;/);
-  assert.doesNotMatch(css, /(?:linear|radial|conic)-gradient|\brgba?\(|\bhsla?\(|oklch\(|color-mix\(|text-shadow|filter:\s*(?:blur|drop-shadow)|transition\s*:/i);
-  for (const radius of css.matchAll(/border-radius:\s*([^;]+);/gi)) {
-    assert.equal(radius[1].trim(), "0", "둥근 모서리를 사용할 수 없습니다");
-  }
-  assert.doesNotMatch(css, /fonts\.(?:googleapis|gstatic)\.com|https?:\/\//i);
+  assert.match(css, /\.page-hero h1,[\s\S]*?font-family:\s*var\(--font-display\);/);
+  assert.match(css, /\.prose h2,[\s\S]*?font-family:\s*var\(--font-display\);/);
+  assert.match(css, /--ease:\s*160ms ease;/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(css, /8px 8px 0/i);
+  assert.doesNotMatch(css, /fonts\.(?:googleapis|gstatic)\.com/i);
+  assert.match(favicon, /fill="#2547D0"/);
+  assert.match(favicon, /stroke="#273244"/);
   const manifest = JSON.parse(await fs.readFile(path.join(outputDir, "manifest.webmanifest"), "utf8"));
-  assert.equal(manifest.background_color, "#FFFFFF");
-  assert.equal(manifest.theme_color, "#0000FF");
+  assert.equal(manifest.background_color, "#F4F6F8");
+  assert.equal(manifest.theme_color, "#2547D0");
 });
 
 test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async () => {

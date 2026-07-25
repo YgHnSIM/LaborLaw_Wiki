@@ -140,8 +140,8 @@ function renderManifest(basePath) {
     start_url: siteHref(basePath, "/"),
     scope: normalizeBasePath(basePath),
     display: "standalone",
-    background_color: "#FFFFFF",
-    theme_color: "#0000FF",
+    background_color: "#F4F6F8",
+    theme_color: "#2547D0",
     icons: [{ src: siteHref(basePath, "/assets/favicon.svg"), sizes: "any", type: "image/svg+xml" }]
   }, null, 2);
 }

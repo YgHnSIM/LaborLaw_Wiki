@@ -104,18 +104,23 @@ function createResult(entry, index, tokens) {
   const meta = window.document.createElement("div");
   meta.className = "search-result-meta";
   const category = window.document.createElement("span");
+  category.className = "search-meta-category";
   category.textContent = entry.categoryLabel;
   const status = window.document.createElement("span");
+  const statusName = String(entry.status || "unknown").replace(/[^a-z0-9_-]/gi, "");
+  status.className = `search-meta-status status-${statusName || "unknown"}`;
   status.textContent = entry.statusLabel;
   meta.append(category, status);
   if (entry.legalArea) {
     const area = window.document.createElement("span");
+    area.className = "search-meta-area";
     area.textContent = entry.legalArea;
     meta.append(area);
   }
   const referenceDate = entry.asOfDate || entry.effectiveDate || entry.decisionDate;
   if (referenceDate) {
     const date = window.document.createElement("span");
+    date.className = "search-meta-date";
     date.textContent = `${entry.asOfDate ? "기준" : entry.effectiveDate ? "시행" : "결정"} ${referenceDate.replaceAll("-", ".")}`;
     meta.append(date);
   }
@@ -133,6 +138,7 @@ function setupSearch() {
   const filterPanel = dialog?.querySelector("[data-search-filter-panel]");
   const filterToggle = dialog?.querySelector("[data-search-filter-toggle]");
   const filterSummary = dialog?.querySelector("[data-search-filter-summary]");
+  const activeFilterChips = dialog?.querySelector("[data-search-active-filters]");
   const filterReset = dialog?.querySelector("[data-search-filter-reset]");
   const filterDone = dialog?.querySelector("[data-search-filter-done]");
   const categoryFilter = dialog?.querySelector("[data-search-category]");
@@ -220,6 +226,30 @@ function setupSearch() {
 
   const filterIsOpen = () => filterToggle.getAttribute("aria-expanded") === "true";
 
+  const renderActiveFilters = () => {
+    if (!activeFilterChips) return;
+    activeFilterChips.replaceChildren();
+    const activeFilters = filterControls.filter((filter) => filter.value);
+    activeFilterChips.hidden = activeFilters.length === 0;
+    for (const filter of activeFilters) {
+      const label = filter.closest("label")?.querySelector("span")?.textContent?.trim() || "필터";
+      const value = filter.selectedOptions[0]?.textContent?.trim() || filter.value;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "search-filter-chip";
+      chip.textContent = `${label} · ${value}`;
+      chip.setAttribute("aria-label", `${label} · ${value} 필터 제거`);
+      chip.addEventListener("click", () => {
+        filter.value = "";
+        visibleLimit = 12;
+        syncFilterUi();
+        render();
+        input.focus();
+      });
+      activeFilterChips.append(chip);
+    }
+  };
+
   const syncFilterOverlayState = () => {
     const blocksResults = filterIsOpen() && mobileFilterMedia.matches;
     results.inert = blocksResults;
@@ -245,6 +275,7 @@ function setupSearch() {
     filterToggle.setAttribute("aria-label", activeCount ? `필터, ${activeCount}개 적용` : "필터, 적용 없음");
     filterToggle.classList.toggle("has-active-filters", activeCount > 0);
     filterReset.disabled = activeCount === 0;
+    renderActiveFilters();
   };
 
   const searchIndex = async (query, activeFilters, limit) => {
@@ -318,11 +349,11 @@ function setupSearch() {
     const activeFilters = filters();
     const hasFilters = Object.values(activeFilters).some(Boolean);
     syncFilterUi();
+    syncUrl();
     if (!query && !hasFilters) {
       guidance.textContent = "제목 완전일치와 별칭을 우선해 본문·사건번호·출처 ID까지 검색합니다.";
       statusText.textContent = "";
       filterDone.textContent = "결과 보기";
-      syncUrl();
       return;
     }
 
@@ -341,7 +372,6 @@ function setupSearch() {
         empty.className = "search-empty";
         empty.textContent = "일치하는 문서가 없습니다. 더 짧은 검색어나 사건번호 일부를 입력해 보세요.";
         results.append(empty);
-        syncUrl();
         return;
       }
       const fragment = document.createDocumentFragment();
@@ -360,7 +390,6 @@ function setupSearch() {
       results.append(fragment);
       input.setAttribute("aria-expanded", "true");
       syncFilterOverlayState();
-      syncUrl();
     } catch (error) {
       guidance.textContent = "검색 색인을 불러오지 못했습니다.";
       statusText.textContent = "검색 색인을 불러오지 못했습니다.";
@@ -520,8 +549,6 @@ function setupReadingCoordinates() {
   if (!article) return;
   const headings = [...article.querySelectorAll("h2, h3")];
   const tocLinks = [...document.querySelectorAll("[data-toc-link]")];
-  const railIndex = document.querySelector("[data-rail-index]");
-  const railTitle = document.querySelector("[data-rail-title]");
   const mobileTitle = document.querySelector("[data-mobile-toc-current]");
   const mobileToc = document.querySelector("[data-mobile-toc]");
   const progress = document.querySelector("[data-reading-progress]");
@@ -536,10 +563,6 @@ function setupReadingCoordinates() {
   });
 
   const activate = (heading) => {
-    const index = headings.indexOf(heading);
-    const coordinate = String(index + 1).padStart(2, "0");
-    if (railIndex) railIndex.textContent = coordinate;
-    if (railTitle) railTitle.textContent = heading.textContent.trim();
     if (mobileTitle) mobileTitle.textContent = heading.textContent.trim();
     tocLinks.forEach((link) => {
       let fragment = link.hash.slice(1);
