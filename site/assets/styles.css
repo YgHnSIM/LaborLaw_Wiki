@@ -4076,6 +4076,7 @@ summary:focus-visible {
 .research-question-index button {
   display: flex;
   align-items: center;
+  min-width: 0;
   min-height: var(--control-min);
   padding: 0.6rem var(--space-3);
 }
@@ -4085,7 +4086,13 @@ summary:focus-visible {
 }
 
 .research-question-index button strong {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .research-question-index button[aria-selected="true"] {

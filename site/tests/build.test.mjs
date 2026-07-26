@@ -774,6 +774,8 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(css, /\.search-active-filters\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;/);
   assert.match(css, /\.search-filter-chip\s*\{[^}]*border-radius:\s*999px;/);
   assert.match(css, /\.research-dossier-panel\[hidden\][\s\S]*?display:\s*none\s*!important;/);
+  assert.match(css, /\.research-question-index button\s*\{[^}]*min-width:\s*0;/);
+  assert.match(css, /\.research-question-index button strong\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*normal;/);
   const mediumStart = css.indexOf("@media (max-width: 78rem)");
   const mobileStart = css.indexOf("@media (max-width: 58rem)");
   assert.ok(mediumStart >= 0 && mobileStart > mediumStart, "78rem 반응형 스타일 구간");
