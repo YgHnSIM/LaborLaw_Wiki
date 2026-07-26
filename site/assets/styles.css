@@ -491,8 +491,7 @@ summary:focus-visible {
 
 .global-menu-group a {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   min-height: 3.75rem;
   padding: 0.65rem 1rem;
@@ -513,6 +512,7 @@ summary:focus-visible {
 }
 
 .global-menu-group a > span:last-child {
+  white-space: nowrap;
   font-size: 0.86rem;
   font-weight: 700;
 }
