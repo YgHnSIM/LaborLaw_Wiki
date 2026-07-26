@@ -83,7 +83,7 @@ before(async () => {
   const wikiFiles = (await listFiles(wikiDir)).filter((file) => file.endsWith(".md"));
   expectedPageCount = wikiFiles.length;
   expectedWikiLinkCount = 0;
-  expectedCategoryCounts = { concepts: 0, analyses: 0, entities: 0, sources: 0, meta: 0 };
+  expectedCategoryCounts = { concepts: 0, analyses: 0, entities: 0, cases: 0, sources: 0, meta: 0 };
   for (const file of wikiFiles) {
     const relative = path.relative(wikiDir, file).replaceAll("\\", "/");
     const category = relative.includes("/") ? relative.split("/", 1)[0] : "meta";
@@ -350,8 +350,8 @@ test("전체 색인은 기존 섹션 링크를 보존한 분류형 카탈로그�
 
   assert.deepEqual(catalogLinks, expectedLinks);
   assert.equal(new Set(catalogLinks).size, catalogLinks.length, "각 문서는 색인에 한 번만 출력된다");
-  assert.equal((html.match(/data-catalog-group(?:\s|=|>)/g) ?? []).length, 6);
-  for (const anchor of ["홈", "메타", "소스", "개념", "개체", "분석", "관련-항목"]) {
+  assert.equal((html.match(/data-catalog-group(?:\s|=|>)/g) ?? []).length, 7);
+  for (const anchor of ["홈", "메타", "소스", "개념", "개체", "분석", "사건", "관련-항목"]) {
     assert.match(html, new RegExp(`id="${anchor}"`), anchor);
   }
   assert.match(html, /data-catalog-category/);
@@ -688,7 +688,8 @@ test("검색·분류·모바일 목차가 실제 문서 메타데이터를 사�
   assert.match(homeHtml, /class="research-meta"/);
   assert.doesNotMatch(homeHtml, /class="research-trust-ribbon"/);
   assert.match(homeHtml, new RegExp(`data-search-preset-status="review"><strong>${result.wiki.stats.statuses.review ?? 0}<\\/strong>개`));
-  assert.match(homeHtml, new RegExp(`<time datetime="${result.wiki.stats.knowledgeAsOf}">`));
+  assert.match(homeHtml, new RegExp(`기준일 커버리지`));
+  assert.match(homeHtml, new RegExp(`<time datetime="${result.wiki.stats.latestChecked}">`));
   assert.match(homeHtml, /data-search-category/);
   assert.match(homeHtml, /data-search-status/);
   assert.match(homeHtml, /data-search-area/);

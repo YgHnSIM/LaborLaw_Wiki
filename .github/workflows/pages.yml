@@ -45,6 +45,7 @@ jobs:
         shell: bash
         run: |
           python -I -B -m unittest discover -s tests -p "test_*.py"
+          python -I -B scripts/sync_wiki.py --check
           base=""
           before="${{ github.event.before }}"
           if [[ "${{ github.event_name }}" == "push" && -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]]; then

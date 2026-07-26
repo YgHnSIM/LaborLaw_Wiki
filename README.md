@@ -2,6 +2,8 @@
 
 대한민국 노동법의 법령·판례·행정해석·노동위원회 판정·입법자료를 원본에서 분석 페이지까지 추적할 수 있게 정리하는 Obsidian 기반 지식베이스입니다. 같은 문서를 GitHub Pages 정적 웹 위키로도 제공합니다. 원본은 `raw/`에 바이트 그대로 보존하고, `wiki/` 문서는 안정적인 출처 ID와 원본 해시 또는 버전 고정 URL로 근거를 연결합니다.
 
+현재 스키마는 v2입니다. 정본 필드·enum·인용 문법은 [`schema/wiki-v2.json`](schema/wiki-v2.json)에 있고, 출처·개념·개체와 별도로 다섯 개 파일럿 사건을 `wiki/cases/`에서 추적합니다. 출처 관계는 `source_relations`로, 일반 문서의 법적 상태는 `normative_status`로 관리하며 v1의 `legal_status`·`related_source_refs`·`superseded_by`는 더 이상 작성하지 않습니다.
+
 ## 빠른 시작
 
 1. 새 파일은 `raw/` 또는 `raw/assets/`에 **추가만** 합니다. URL만 있는 자료는 원본 파일을 만들지 않아도 됩니다.
@@ -14,6 +16,7 @@
 python -I -B -m unittest discover -s tests -p "test_*.py"
 python -I -B scripts/lint_wiki.py
 python -I -B scripts/lint_wiki.py --base origin/main
+python -I -B scripts/sync_wiki.py --check
 npm ci
 npm test
 npm run build
@@ -30,10 +33,14 @@ wiki/sources/           출처별 요약과 출처 ID·계보
 wiki/concepts/          노동법 개념·조문·판단기준
 wiki/entities/          기관·법원·위원회·단체
 wiki/analyses/          쟁점·판례·입법사·실무 분석
+wiki/cases/             사건 단위 진행·판정·검증 기록
 wiki/meta/              템플릿·방법론·용어집
+wiki/data/              연구 질문·단계·검색 제안 JSON
 wiki/index.md           전체 페이지 카탈로그
 wiki/log.md             append-only 작업 감사기록
+schema/wiki-v2.json     공용 페이지·출처·사건 스키마 정본
 scripts/lint_wiki.py    의존성 없는 저장소 검사기
+scripts/sync_wiki.py    결정적 색인 생성기(--check 지원)
 site/                   정적 웹 위키 생성기·화면·브라우저 자산·테스트
 package.json            웹 빌드 명령과 고정된 Node 의존성
 _site/                  생성된 웹 사이트(커밋하지 않음)
@@ -54,10 +61,12 @@ npm run preview
 
 - `overview.md`는 홈페이지, `index.md`는 `/catalog/`, `log.md`는 `/log/`로 만듭니다.
 - 출처 페이지는 파일명 대신 `/sources/{source_id}/` 형태의 안정적인 주소를 사용합니다.
+- 사건 페이지는 `/cases/{case_id}/` 형태의 안정적인 주소를 사용하고, 사건 상태·검증 상태·다음 검토일을 표시합니다.
 - 파일명·제목·별칭을 기준으로 Obsidian 위키링크를 해석하고 콜아웃과 표를 웹 HTML로 변환합니다.
 - 일반 문서에는 `source_refs` 기반 근거 목록을, 출처 문서에는 이를 사용한 문서의 역참조를 표시합니다.
 - 검색은 제목, 별칭, 본문, 출처 ID, 발행기관, 사건번호·의안번호를 대상으로 합니다.
 - `raw/` 파일은 Pages 산출물에 복제하지 않고 배포 커밋에 고정된 GitHub 원본 링크로 연결합니다.
+- `draft`, `review`, `archived` 문서는 내부 링크·검색에는 남지만 sitemap에서 제외되고 `noindex,follow`로 렌더링됩니다. `/freshness/`에서 영역별 기준일 커버리지와 기한 경과 문서를 확인합니다.
 
 GitHub Pages 프로젝트 경로를 로컬에서 재현하려면 다음처럼 환경변수를 지정할 수 있습니다.
 
@@ -84,7 +93,7 @@ npm run build
 | `review` | 모순 경고, 불확실한 후속 상태, 기준일 경과 등 재검토가 필요한 문서 |
 | `archived` | 역사적 기록으로 보존하지만 현행 설명으로 사용하지 않는 문서 |
 
-본문에 `> [!WARNING]`이 있으면 해결 전까지 반드시 `review` 상태를 사용합니다. 진행 중 사건은 `event_status`와 `next_review_date`로 다음 확인 시점을 기록합니다.
+본문에 `> [!WARNING]`이 있으면 해결 전까지 반드시 `review` 상태를 사용합니다. 진행 중 사건은 `event_status`와 `next_review_date`로 다음 확인 시점을 기록합니다. 일반 페이지의 검토 주기는 `review_due`·`review_reason`으로 기록합니다.
 
 ## 출처와 최신성 원칙
 

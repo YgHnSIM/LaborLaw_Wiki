@@ -1,25 +1,25 @@
 ---
 title: 쿠팡CLS 교섭단위 분리 기각
-aliases: [쿠팡CLS 교섭 분리 기각, CLS 상급단체 차이 기각, 택배노조 CLS 교섭단위 분리]
-tags: [type/source, domain/labor-law, area/collective-labor, status/active]
+aliases: ["쿠팡CLS 교섭 분리 기각", "CLS 상급단체 차이 기각", "택배노조 CLS 교섭단위 분리"]
+tags: ["type/source", "domain/labor-law", "area/collective-labor", "status/active"]
 created: 2026-06-08
 updated: 2026-07-10
 status: active
+summary: 서울지방노동위원회가 쿠팡로지스틱스서비스의 원청 사용자성을 인정하면서도, 상급단체가 다르다는 사정만으로 하청 택배기사 노동조합 사이의 교섭단위 분리 필요성을 인정할 수 없다고 판단한 사건을 보도한 기사다.
 source_id: SRC-0AC5734CA9
 source_type: news
 publisher: 노동법률
 raw_sources: ["raw/“상급단체 차이만으론 교섭단위 분리 불가”…쿠팡CLS 교섭 분리 ‘기각’.md"]
 raw_sha256: ["8fb3d05e525eca881d663e32071890b5b037fab0b1dc28f534f5cd03522e8982"]
 source_urls: []
-related_source_refs: [SRC-C943D804F0]
+source_relations: [{"type": "same_matter", "target": "SRC-C943D804F0"}, {"type": "supersedes", "target": "SRC-C943D804F0"}]
+record_status: available
 legal_area: 집단노동
 authority: 기타
 publication_date: 2026-05-11
-reported_decision_dates: [2026-04-09]
-legal_status: superseded
-event_status: superseded
-superseded_by: SRC-C943D804F0
+reported_decision_dates: ["2026-04-09"]
 confidence: medium
+case_refs: ["CASE-COUPANGCLS-2026-04-09"]
 ---
 
 # 쿠팡CLS 교섭단위 분리 기각

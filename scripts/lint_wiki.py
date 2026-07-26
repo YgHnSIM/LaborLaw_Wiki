@@ -22,19 +22,32 @@ import sys
 import unicodedata
 from urllib.parse import parse_qs, urlparse
 
+import importlib.util
+
+_SCHEMA_SPEC = importlib.util.spec_from_file_location("labor_law_wiki_schema", Path(__file__).with_name("schema.py"))
+if _SCHEMA_SPEC is None or _SCHEMA_SPEC.loader is None:
+    raise RuntimeError("schema.py를 불러올 수 없습니다")
+_SCHEMA_MODULE = importlib.util.module_from_spec(_SCHEMA_SPEC)
+_SCHEMA_SPEC.loader.exec_module(_SCHEMA_MODULE)
+AUTHORITIES = _SCHEMA_MODULE.AUTHORITIES
+CONFIDENCE_VALUES = _SCHEMA_MODULE.CONFIDENCE_VALUES
+EVENT_STATUSES = _SCHEMA_MODULE.EVENT_STATUSES
+LEGAL_AREAS = _SCHEMA_MODULE.LEGAL_AREAS
+NORMATIVE_STATUSES = _SCHEMA_MODULE.NORMATIVE_STATUSES
+OPEN_EVENT_STATUSES = _SCHEMA_MODULE.OPEN_EVENT_STATUSES
+RECORD_STATUSES = _SCHEMA_MODULE.RECORD_STATUSES
+SOURCE_RELATION_TYPES = _SCHEMA_MODULE.SOURCE_RELATION_TYPES
+SOURCE_TYPES = _SCHEMA_MODULE.SOURCE_TYPES
+STATUS_VALUES = _SCHEMA_MODULE.STATUS_VALUES
+TYPE_BY_DIRECTORY = _SCHEMA_MODULE.TYPE_BY_DIRECTORY
+INDEX_SECTION_BY_TYPE = _SCHEMA_MODULE.INDEX_SECTION_BY_TYPE
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WIKI = ROOT / "wiki"
 RAW = ROOT / "raw"
 
-COMMON_REQUIRED = ("title", "aliases", "tags", "created", "updated", "status")
-STATUS_VALUES = {"draft", "active", "review", "archived"}
-LEGAL_AREAS = {"근로기준", "집단노동", "산재", "고용평등", "비정규직", "퇴직급여", "중대재해", "입법사"}
-AUTHORITIES = {"법령", "대법원", "헌법재판소", "고용노동부", "중앙노동위원회", "국회", "학설", "기타"}
-LEGAL_STATUSES = {"current", "amended", "repealed", "overruled", "superseded", "uncertain"}
-CONFIDENCE_VALUES = {"high", "medium", "low"}
-EVENT_STATUSES = {"scheduled", "pending", "decided", "appealed", "final", "superseded", "closed", "uncertain"}
-OPEN_EVENT_STATUSES = {"scheduled", "pending", "appealed", "uncertain"}
+COMMON_REQUIRED = ("title", "aliases", "tags", "created", "updated", "status", "summary")
 LOG_TYPES = {"ingest", "analysis", "update", "lint", "maintenance", "refactor", "remove", "chore"}
 DATE_FIELDS = {
     "created",
@@ -46,6 +59,8 @@ DATE_FIELDS = {
     "retrieved",
     "as_of_date",
     "next_review_date",
+    "last_checked",
+    "review_due",
 }
 SOURCE_FIELDS = {
     "source_id",
@@ -56,34 +71,38 @@ SOURCE_FIELDS = {
     "attachments",
     "source_urls",
     "retrieved",
-    "related_source_refs",
-    "superseded_by",
+    "source_relations",
     "reported_decision_dates",
     "case_decisions",
     "reported_authority",
     "publication_period",
+    "record_status",
 }
-TYPE_BY_DIRECTORY = {
-    "sources": "source",
-    "concepts": "concept",
-    "entities": "entity",
-    "analyses": "analysis",
-    "meta": "meta",
+CATALOGUE_SECTIONS = {"홈", "메타", "소스", "개념", "개체", "분석", "사건"}
+
+KNOWN_FIELDS = {
+    *COMMON_REQUIRED,
+    "source_id", "source_type", "publisher", "author", "adjudicating_body", "reported_authority",
+    "raw_sources", "raw_sha256", "attachments", "source_urls", "retrieved", "source_relations",
+    "source_refs", "background_source_refs", "decision_source_refs", "publication_date", "publication_period",
+    "reported_decision_dates", "case_decisions", "case_number", "case_id", "case_numbers",
+    "party_entity_refs", "parties", "issue_refs", "entity_id", "entity_type", "as_of_date", "next_review_date",
+    "last_checked", "review_due", "review_reason", "event_status", "verification_status",
+    "legal_area", "authority", "effective_date", "decision_date", "promulgation_date",
+    "record_status", "normative_status", "confidence", "process_type", "bill_numbers", "assembly_session",
+    "committee", "key_dates", "law_number", "version", "staged_effective_dates", "related_official_url",
+    "source_system", "removed_raw_refs", "case_refs",
+    # v1 fields are retained in the registry only so the validator can issue
+    # a migration-specific diagnostic instead of silently accepting them.
+    "legal_status", "related_source_refs", "superseded_by", "sources",
 }
-INDEX_SECTION_BY_TYPE = {
-    "source": "소스",
-    "concept": "개념",
-    "entity": "개체",
-    "analysis": "분석",
-    "meta": "메타",
-}
-CATALOGUE_SECTIONS = {"홈", "메타", "소스", "개념", "개체", "분석"}
 
 KEY_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_]*):(?:[ \t]*(.*))?$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TAG_RE = re.compile(r"^(type|domain|area|status)/[a-z0-9][a-z0-9-]*$")
 SOURCE_ID_RE = re.compile(r"^SRC-[A-Z0-9][A-Z0-9._-]{2,}$")
-SOURCE_CITATION_RE = re.compile(r"\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]")
+SOURCE_CITATION_RE = re.compile(r"\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})(?:#(p|para|art)=([A-Za-z0-9._-]+))?\]")
+SOURCE_CITATION_TOKEN_RE = re.compile(r"\[@([^\]\s]+)\]")
 SOURCE_TYPE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 WARNING_RE = re.compile(r"^>\s*\[!WARNING\]", re.MULTILINE)
@@ -126,6 +145,7 @@ class Linter:
         self.page_by_rel: dict[str, Page] = {}
         self.identities: dict[str, list[Page]] = {}
         self.source_by_id: dict[str, Page] = {}
+        self.case_by_id: dict[str, Page] = {}
         self.raw_references: dict[str, list[tuple[Page, str]]] = {}
 
     def add(
@@ -160,6 +180,7 @@ class Linter:
         self.build_identity_index()
         self.validate_pages()
         self.build_source_index()
+        self.build_case_index()
         self.validate_source_lineage()
         self.validate_links()
         self.validate_index()
@@ -265,8 +286,8 @@ class Linter:
                 except ValueError as exc:
                     self.error("FM_VALUE", path, f"`{key}` 값을 해석할 수 없습니다: {exc}", line_no)
                     value = raw_value.strip()
-                if key != "case_decisions" and contains_structured_value(value):
-                    self.error("FM_MAPPING_SCOPE", path, "JSON 스타일 인라인 매핑은 case_decisions에서만 사용할 수 있습니다.", line_no)
+                if key not in {"case_decisions", "source_relations"} and contains_structured_value(value):
+                    self.error("FM_MAPPING_SCOPE", path, "JSON 스타일 인라인 매핑은 case_decisions·source_relations에서만 사용할 수 있습니다.", line_no)
                 result[key] = value
                 index += 1
                 continue
@@ -299,8 +320,8 @@ class Linter:
                     self.error("FM_VALUE", path, f"`{key}` 목록 값을 해석할 수 없습니다: {exc}", child_no)
                 cursor += 1
             value = values if saw_item else None
-            if key != "case_decisions" and contains_structured_value(value):
-                self.error("FM_MAPPING_SCOPE", path, "JSON 스타일 인라인 매핑은 case_decisions에서만 사용할 수 있습니다.", line_no)
+            if key not in {"case_decisions", "source_relations"} and contains_structured_value(value):
+                self.error("FM_MAPPING_SCOPE", path, "JSON 스타일 인라인 매핑은 case_decisions·source_relations에서만 사용할 수 있습니다.", line_no)
             result[key] = value
             index = cursor
         return result, key_lines
@@ -331,16 +352,27 @@ class Linter:
     def validate_pages(self) -> None:
         for page in self.pages:
             fm = page.frontmatter
+            unknown = set(fm) - KNOWN_FIELDS
+            if unknown:
+                self.error("FM_UNKNOWN_KEY", page.path, f"중앙 스키마에 없는 프론트매터 키입니다: {', '.join(sorted(unknown))}")
             for key in COMMON_REQUIRED:
                 if key not in fm:
                     self.error("FM_REQUIRED", page.path, f"필수 키 `{key}`가 없습니다.")
             if "sources" in fm:
-                self.error("FM_LEGACY_SOURCES", page.path, "폐기된 `sources` 대신 `source_refs` 또는 출처 계보 필드를 사용하세요.", page.line_for("sources"))
+                self.error("FM_LEGACY_SOURCES", page.path, "폐기된 `sources` 대신 source_refs 또는 출처 계보 필드를 사용하세요.", page.line_for("sources"))
+            for legacy in ("legal_status", "related_source_refs", "superseded_by"):
+                if legacy in fm:
+                    self.error("FM_LEGACY_FIELD", page.path, f"v1 필드 `{legacy}`는 v2에서 사용할 수 없습니다.", page.line_for(legacy))
 
             title = require_nonempty_string(self, page, "title")
             aliases = require_string_list(self, page, "aliases")
             tags = require_string_list(self, page, "tags")
             status = require_nonempty_string(self, page, "status")
+            summary = require_nonempty_string(self, page, "summary")
+            if summary and not (20 <= len(summary) <= 200):
+                self.error("FM_SUMMARY_LENGTH", page.path, "summary는 20~200자의 한 줄 요약이어야 합니다.", page.line_for("summary"))
+            if summary and "\n" in summary:
+                self.error("FM_SUMMARY_LINE", page.path, "summary는 한 줄이어야 합니다.", page.line_for("summary"))
 
             if status and status not in STATUS_VALUES:
                 self.error("FM_ENUM_STATUS", page.path, f"status는 {sorted(STATUS_VALUES)} 중 하나여야 합니다.", page.line_for("status"))
@@ -381,11 +413,25 @@ class Linter:
             validate_optional_enum(self, page, "authority", AUTHORITIES)
             if "reported_authority" in fm:
                 require_nonempty_string(self, page, "reported_authority")
-            validate_optional_enum(self, page, "legal_status", LEGAL_STATUSES)
+            validate_optional_enum(self, page, "record_status", RECORD_STATUSES)
+            validate_optional_enum(self, page, "normative_status", NORMATIVE_STATUSES)
             validate_optional_enum(self, page, "confidence", CONFIDENCE_VALUES)
             event_status = validate_optional_enum(self, page, "event_status", EVENT_STATUSES)
-            if event_status in OPEN_EVENT_STATUSES and "next_review_date" not in parsed_dates:
+            if page.expected_type == "case" and not require_nonempty_string(self, page, "case_id"):
+                self.error("CASE_ID_REQUIRED", page.path, "사건 페이지에는 안정적인 case_id가 필요합니다.", page.line_for("case_id"))
+            if page.expected_type == "entity":
+                entity_id = require_nonempty_string(self, page, "entity_id")
+                entity_type = require_nonempty_string(self, page, "entity_type")
+                if entity_id and not re.fullmatch(r"ENT-[A-Z0-9][A-Z0-9._-]{2,}", entity_id):
+                    self.error("ENTITY_ID_FORMAT", page.path, "entity_id는 ENT-로 시작하는 안정적인 식별자여야 합니다.", page.line_for("entity_id"))
+                if entity_type and not re.fullmatch(r"[a-z][a-z0-9_-]*", entity_type):
+                    self.error("ENTITY_TYPE_FORMAT", page.path, "entity_type은 lower_snake_case여야 합니다.", page.line_for("entity_type"))
+            if page.expected_type == "case" and event_status in OPEN_EVENT_STATUSES and "next_review_date" not in parsed_dates:
                 self.error("EVENT_REVIEW_REQUIRED", page.path, f"event_status `{event_status}`에는 next_review_date가 필요합니다.", page.line_for("event_status"))
+            if page.expected_type != "case" and "next_review_date" in fm:
+                self.error("NEXT_REVIEW_CASE_ONLY", page.path, "next_review_date는 사건 페이지에서만 사용합니다.", page.line_for("next_review_date"))
+            if page.expected_type in {"concept", "analysis", "entity"} and status in {"active", "review"} and "as_of_date" not in parsed_dates:
+                self.error("AS_OF_REQUIRED", page.path, "활성·검토 중인 개념·분석·개체에는 실제 확인일(as_of_date)이 필요합니다.", page.line_for("as_of_date"))
             next_review = parsed_dates.get("next_review_date")
             if next_review and next_review < date.today():
                 self.warning("EVENT_REVIEW_DUE", page.path, f"next_review_date {next_review.isoformat()}가 지났습니다. 후속 상태를 확인하세요.", page.line_for("next_review_date"))
@@ -423,17 +469,33 @@ class Linter:
             else:
                 self.source_by_id[source_id] = page
 
+    def build_case_index(self) -> None:
+        for page in self.pages:
+            if page.expected_type != "case":
+                continue
+            case_id = page.frontmatter.get("case_id")
+            if not isinstance(case_id, str) or not case_id.strip():
+                continue
+            if case_id in self.case_by_id:
+                self.error("CASE_ID_DUPLICATE", page.path, f"case_id `{case_id}`가 중복됩니다.", page.line_for("case_id"))
+            else:
+                self.case_by_id[case_id] = page
+
     def validate_source_lineage(self) -> None:
         for page in self.pages:
             if page.expected_type == "source":
                 self.validate_source_page(page)
+            elif page.expected_type == "case":
+                self.validate_case_page(page)
             else:
                 self.validate_source_refs(page)
+        self.validate_source_relations()
         self.validate_raw_coverage()
+        self.validate_raw_removal_manifest()
 
     def validate_source_page(self, page: Page) -> None:
         fm = page.frontmatter
-        for key in ("source_id", "source_type", "publisher", "raw_sources", "raw_sha256", "source_urls"):
+        for key in ("source_id", "source_type", "publisher", "raw_sources", "raw_sha256", "source_urls", "record_status"):
             if key not in fm:
                 self.error("SOURCE_REQUIRED", page.path, f"출처 페이지 필수 키 `{key}`가 없습니다.")
         if "source_refs" in fm:
@@ -445,12 +507,16 @@ class Linter:
         source_type = require_nonempty_string(self, page, "source_type")
         if source_type and not SOURCE_TYPE_RE.fullmatch(source_type):
             self.error("SOURCE_TYPE_FORMAT", page.path, "source_type은 lower_snake_case여야 합니다.", page.line_for("source_type"))
+        if source_type and source_type not in SOURCE_TYPES:
+            self.error("SOURCE_TYPE_UNKNOWN", page.path, f"source_type은 중앙 스키마의 허용 값이어야 합니다: {', '.join(sorted(SOURCE_TYPES))}", page.line_for("source_type"))
         require_nonempty_string(self, page, "publisher")
+        validate_optional_enum(self, page, "record_status", RECORD_STATUSES)
         raw_sources = require_string_list(self, page, "raw_sources")
         raw_hashes = require_string_list(self, page, "raw_sha256")
         source_urls = require_string_list(self, page, "source_urls")
         attachments = optional_string_list(self, page, "attachments")
-        related_refs = optional_string_list(self, page, "related_source_refs")
+        source_relations = fm.get("source_relations", [])
+        self.validate_source_relation_values(page, source_relations)
 
         if len(raw_sources) != len(raw_hashes):
             self.error("SOURCE_HASH_COUNT", page.path, "raw_sources와 raw_sha256의 항목 수가 같아야 합니다.", page.line_for("raw_sha256"))
@@ -460,8 +526,6 @@ class Linter:
             self.error("SOURCE_URL_DUPLICATE", page.path, "source_urls에 중복 URL이 있습니다.", page.line_for("source_urls"))
         if len(attachments) != len(set(attachments)):
             self.error("SOURCE_ATTACHMENT_DUPLICATE", page.path, "attachments에 중복 경로가 있습니다.", page.line_for("attachments"))
-        if len(related_refs) != len(set(related_refs)):
-            self.error("SOURCE_RELATED_DUPLICATE", page.path, "related_source_refs에 중복 ID가 있습니다.", page.line_for("related_source_refs"))
         if "raw_sources" in fm and "source_urls" in fm and not raw_sources and not source_urls:
             self.error("SOURCE_PROVENANCE_EMPTY", page.path, "raw_sources 또는 source_urls 중 하나 이상이 필요합니다.", page.line_for("raw_sources"))
         if source_urls and "retrieved" not in fm:
@@ -555,20 +619,6 @@ class Linter:
         if source_type in {"practitioner_commentary", "academic_paper", "research_report", "llm_report"} and "publication_date" not in fm and publication_period is None:
             self.error("SOURCE_PUBLICATION_REQUIRED", page.path, f"{source_type} 출처에는 publication_date 또는 publication_period가 필요합니다.")
 
-        for ref in related_refs:
-            if ref == source_id:
-                self.error("SOURCE_RELATED_SELF", page.path, "related_source_refs에서 자기 source_id를 참조할 수 없습니다.", page.line_for("related_source_refs"))
-            elif ref not in self.source_by_id:
-                self.error("SOURCE_RELATED_MISSING", page.path, f"존재하지 않는 관련 source_id입니다: `{ref}`", page.line_for("related_source_refs"))
-        if "superseded_by" in fm:
-            superseded_by = require_nonempty_string(self, page, "superseded_by")
-            if superseded_by == source_id:
-                self.error("SOURCE_SUPERSEDED_SELF", page.path, "superseded_by에서 자기 source_id를 참조할 수 없습니다.", page.line_for("superseded_by"))
-            elif superseded_by and superseded_by not in self.source_by_id:
-                self.error("SOURCE_SUPERSEDED_MISSING", page.path, f"존재하지 않는 후속 source_id입니다: `{superseded_by}`", page.line_for("superseded_by"))
-            if superseded_by and fm.get("legal_status") != "superseded":
-                self.error("SOURCE_SUPERSEDED_STATUS", page.path, "superseded_by가 있으면 legal_status도 `superseded`여야 합니다.", page.line_for("legal_status"))
-
         if source_type == "official_law":
             for key in ("as_of_date", "effective_date", "version"):
                 if key not in fm:
@@ -598,6 +648,95 @@ class Linter:
         authority = fm.get("authority")
         if source_type in {"news", "practitioner_commentary", "llm_report", "stakeholder_statement"} and authority not in {None, "기타", "학설"}:
             self.error("SOURCE_AUTHORITY_ROLE", page.path, f"{source_type} 자료의 보도·논의 대상 기관은 authority가 아니라 reported_authority에 기록하세요.", page.line_for("authority"))
+        for case_id in optional_string_list(self, page, "case_refs"):
+            if case_id not in self.case_by_id:
+                self.error("SOURCE_CASE_REF_MISSING", page.path, f"존재하지 않는 case_id입니다: {case_id}", page.line_for("case_refs"))
+
+    def validate_source_relation_values(self, page: Page, relations: object) -> None:
+        if relations in (None, ""):
+            return
+        if not isinstance(relations, list):
+            self.error("SOURCE_RELATIONS_TYPE", page.path, "source_relations는 JSON 매핑 목록이어야 합니다.", page.line_for("source_relations"))
+            return
+        seen: set[tuple[str, str]] = set()
+        for position, item in enumerate(relations, start=1):
+            if not isinstance(item, dict):
+                self.error("SOURCE_RELATION_ITEM", page.path, f"source_relations {position}번째 항목은 매핑이어야 합니다.", page.line_for("source_relations"))
+                continue
+            if set(item) - {"type", "target"}:
+                self.error("SOURCE_RELATION_KEY", page.path, f"source_relations {position}번째 항목에 알 수 없는 키가 있습니다.", page.line_for("source_relations"))
+            relation_type = item.get("type")
+            target = item.get("target")
+            if relation_type not in SOURCE_RELATION_TYPES:
+                self.error("SOURCE_RELATION_TYPE", page.path, f"source_relations type은 {sorted(SOURCE_RELATION_TYPES)} 중 하나여야 합니다.", page.line_for("source_relations"))
+            if not isinstance(target, str) or not target.strip():
+                self.error("SOURCE_RELATION_TARGET", page.path, "source_relations target은 비어 있지 않은 source_id여야 합니다.", page.line_for("source_relations"))
+                continue
+            identity = (str(relation_type), target.strip())
+            if identity in seen:
+                self.error("SOURCE_RELATION_DUPLICATE", page.path, f"source_relations 중복 연결입니다: {identity[0]} → {identity[1]}", page.line_for("source_relations"))
+            seen.add(identity)
+            source_id = page.frontmatter.get("source_id")
+            if target == source_id:
+                self.error("SOURCE_RELATION_SELF", page.path, "source_relations에서 자기 source_id를 참조할 수 없습니다.", page.line_for("source_relations"))
+            elif target not in self.source_by_id:
+                self.error("SOURCE_RELATION_MISSING", page.path, f"존재하지 않는 target source_id입니다: `{target}`", page.line_for("source_relations"))
+
+    def validate_source_relations(self) -> None:
+        graph: dict[str, list[tuple[str, str, Page]]] = {}
+        reverse_types = {"updates": "updated_by", "supersedes": "superseded_by", "appeal_of": "appealed_by"}
+        for page in self.pages:
+            if page.expected_type != "source":
+                continue
+            source_id = page.frontmatter.get("source_id")
+            if not isinstance(source_id, str):
+                continue
+            for relation in page.frontmatter.get("source_relations", []) or []:
+                if not isinstance(relation, dict):
+                    continue
+                target = relation.get("target")
+                relation_type = relation.get("type")
+                if not isinstance(target, str) or target not in self.source_by_id:
+                    continue
+                graph.setdefault(source_id, []).append((target, str(relation_type), page))
+                if relation_type == "same_matter":
+                    reciprocal = self.source_by_id[target].frontmatter.get("source_relations", []) or []
+                    if not any(isinstance(item, dict) and item.get("type") == "same_matter" and item.get("target") == source_id for item in reciprocal):
+                        self.error("SOURCE_RELATION_SYMMETRY", page.path, f"same_matter 관계는 {target} 쪽에도 대칭 연결이 필요합니다.", page.line_for("source_relations"))
+                target_page = self.source_by_id[target]
+                source_date = self.source_relation_date(page)
+                target_date = self.source_relation_date(target_page)
+                if source_date and target_date and relation_type in {"updates", "supersedes", "amends"} and target_date < source_date:
+                    self.error("SOURCE_RELATION_DATE", page.path, f"{relation_type} 관계의 target 자료일({target_date})이 현재 자료일({source_date})보다 이를 수 없습니다.", page.line_for("source_relations"))
+
+        visiting: set[str] = set()
+        visited: set[str] = set()
+        def walk(source_id: str, stack: list[str]) -> None:
+            if source_id in visiting:
+                self.error("SOURCE_RELATION_CYCLE", self.source_by_id[source_id].path, f"source_relations 순환 참조입니다: {' → '.join(stack + [source_id])}", self.source_by_id[source_id].line_for("source_relations"))
+                return
+            if source_id in visited:
+                return
+            visiting.add(source_id)
+            for target, relation_type, _ in graph.get(source_id, []):
+                if relation_type in {"updates", "supersedes", "amends", "appeal_of"}:
+                    walk(target, stack + [source_id])
+            visiting.remove(source_id)
+            visited.add(source_id)
+        for source_id in graph:
+            walk(source_id, [])
+
+    @staticmethod
+    def source_relation_date(page: Page) -> date | None:
+        fm = page.frontmatter
+        for key in ("decision_date", "publication_date", "retrieved", "updated"):
+            value = fm.get(key)
+            if isinstance(value, str) and is_valid_date(value):
+                return datetime.strptime(value, "%Y-%m-%d").date()
+        period = fm.get("publication_period")
+        if isinstance(period, str) and re.fullmatch(r"\d{4}(?:-\d{2})?", period):
+            return date(int(period[:4]), int(period[5:7]) if len(period) > 4 else 1, 1)
+        return None
 
     def validate_source_refs(self, page: Page) -> None:
         fm = page.frontmatter
@@ -610,21 +749,78 @@ class Linter:
         if len(refs) != len(set(refs)):
             self.error("SOURCE_REFS_DUPLICATE", page.path, "source_refs에 중복 ID가 있습니다.", page.line_for("source_refs"))
         if page.expected_type != "meta" and has_refs and not refs:
-            self.error("SOURCE_REFS_EMPTY", page.path, "개념·개체·분석 페이지에는 하나 이상의 source_refs가 필요합니다.", page.line_for("source_refs"))
+            self.error("SOURCE_REFS_EMPTY", page.path, "실체 페이지에는 하나 이상의 source_refs가 필요합니다.", page.line_for("source_refs"))
         for ref in refs:
             if ref not in self.source_by_id:
                 self.error("SOURCE_REF_MISSING", page.path, f"존재하지 않는 source_id입니다: `{ref}`", page.line_for("source_refs"))
+        background = optional_string_list(self, page, "background_source_refs")
+        for ref in background:
+            if ref not in self.source_by_id:
+                self.error("BACKGROUND_SOURCE_REF_MISSING", page.path, f"존재하지 않는 background source_id입니다: `{ref}`", page.line_for("background_source_refs"))
+            if ref in refs:
+                self.error("BACKGROUND_SOURCE_REF_DUPLICATE", page.path, f"background_source_refs는 direct source_refs와 중복할 수 없습니다: {ref}", page.line_for("background_source_refs"))
+        decision_refs = optional_string_list(self, page, "decision_source_refs")
+        if page.expected_type != "case" and decision_refs:
+            self.error("DECISION_SOURCE_CASE_ONLY", page.path, "decision_source_refs는 사건 페이지에서만 사용합니다.", page.line_for("decision_source_refs"))
+        for ref in decision_refs:
+            source = self.source_by_id.get(ref)
+            if source is None:
+                self.error("DECISION_SOURCE_REF_MISSING", page.path, f"존재하지 않는 decision_source_refs ID입니다: {ref}", page.line_for("decision_source_refs"))
+            elif ref not in refs:
+                self.error("DECISION_SOURCE_NOT_DIRECT", page.path, f"decision_source_refs는 source_refs의 부분집합이어야 합니다: {ref}", page.line_for("decision_source_refs"))
+            elif source.frontmatter.get("source_type") != "official_decision":
+                self.error("DECISION_SOURCE_NOT_OFFICIAL", page.path, f"decision_source_refs는 official_decision만 가리킬 수 있습니다: {ref}", page.line_for("decision_source_refs"))
         visible = remove_fenced_code(page.body)
-        for match in SOURCE_CITATION_RE.finditer(visible):
+        markers = list(SOURCE_CITATION_RE.finditer(visible))
+        for malformed in SOURCE_CITATION_TOKEN_RE.finditer(visible):
+            token = malformed.group(1)
+            if not re.fullmatch(r"SRC-[A-Z0-9][A-Z0-9._-]{2,}(?:#(?:p|para|art)=[A-Za-z0-9._-]+)?", token):
+                line = page.body_start_line + visible.count("\n", 0, malformed.start())
+                self.error("SOURCE_CITATION_FORMAT", page.path, f"근거 표식 형식이 잘못되었습니다: `[@{token}]`", line)
+        for match in markers:
             ref = match.group(1)
             line = page.body_start_line + visible.count("\n", 0, match.start())
             if ref not in self.source_by_id:
                 self.error("SOURCE_CITATION_MISSING", page.path, f"본문 근거 표식이 존재하지 않는 source_id를 가리킵니다: `{ref}`", line)
             elif ref not in refs:
                 self.error("SOURCE_CITATION_UNDECLARED", page.path, f"본문 근거 표식 `{ref}`를 frontmatter source_refs에도 등록하세요.", line)
+        high_risk = bool(re.search(r"(?:\b\d{4}[가-힣]{0,3}\d+|\b\d+(?:\.\d+)?%|인용|기각|확정|선고|판정|결정|취하|공고|시행일|사건번호)", visible))
+        if page.expected_type in {"concept", "entity", "analysis", "case"} and high_risk and not markers:
+            self.error("SOURCE_CITATION_REQUIRED", page.path, "날짜·사건번호·수치·결론을 포함한 고위험 주장에는 문단 근거 표식이 필요합니다.")
+        if page.expected_type in {"concept", "entity", "analysis", "case"} and len(refs) >= 5 and not markers:
+            self.error("SOURCE_CITATION_COVERAGE", page.path, "source_refs가 5개 이상인 실체 페이지에는 최소 하나의 본문 근거 표식이 필요합니다.")
+        if page.frontmatter.get("confidence") == "high":
+            for ref in refs:
+                source = self.source_by_id.get(ref)
+                if source is not None and not str(source.frontmatter.get("source_type", "")).startswith("official_"):
+                    self.error("CONFIDENCE_OFFICIAL_REQUIRED", page.path, f"confidence: high에는 모든 직접 출처가 공식 자료여야 합니다: {ref}", page.line_for("confidence"))
+            if WARNING_RE.search(visible):
+                self.error("CONFIDENCE_WARNING", page.path, "WARNING이 있는 페이지는 confidence: high를 사용할 수 없습니다.", page.line_for("confidence"))
         forbidden = SOURCE_FIELDS & fm.keys()
         if forbidden:
             self.error("SOURCE_FIELDS_ON_PAGE", page.path, f"비출처 페이지에 출처 계보 필드가 있습니다: {', '.join(sorted(forbidden))}")
+
+    def validate_case_page(self, page: Page) -> None:
+        fm = page.frontmatter
+        for key in ("case_id", "case_numbers", "adjudicating_body", "parties", "party_entity_refs", "issue_refs", "source_refs", "decision_source_refs", "event_status", "verification_status", "last_checked"):
+            if key not in fm:
+                self.error("CASE_REQUIRED", page.path, f"사건 페이지 필수 키 `{key}`가 없습니다.", page.line_for(key))
+        case_id = require_nonempty_string(self, page, "case_id")
+        if case_id and not re.fullmatch(r"CASE-[A-Z0-9][A-Z0-9._-]{2,}", case_id):
+            self.error("CASE_ID_FORMAT", page.path, "case_id는 CASE-로 시작하는 안정적인 영문 대문자·숫자 식별자여야 합니다.", page.line_for("case_id"))
+        for key in ("case_numbers", "parties", "party_entity_refs", "issue_refs"):
+            values = optional_string_list(self, page, key)
+            if key in fm and not values:
+                self.error("CASE_LIST_EMPTY", page.path, f"{key}는 하나 이상의 문자열 목록이어야 합니다.", page.line_for(key))
+        entity_refs = optional_string_list(self, page, "party_entity_refs")
+        for ref in entity_refs:
+            entity = next((candidate for candidate in self.pages if candidate.expected_type == "entity" and candidate.frontmatter.get("entity_id") == ref), None)
+            if entity is None:
+                self.error("CASE_ENTITY_REF_MISSING", page.path, f"존재하지 않는 party entity_id입니다: {ref}", page.line_for("party_entity_refs"))
+        verification = require_nonempty_string(self, page, "verification_status")
+        if verification and verification not in {"verified", "partial", "unverified"}:
+            self.error("CASE_VERIFICATION", page.path, "verification_status는 verified|partial|unverified 중 하나여야 합니다.", page.line_for("verification_status"))
+        self.validate_source_refs(page)
 
     def validate_raw_path(self, page: Page, raw_ref: str, key: str) -> Path | None:
         if "\\" in raw_ref:
@@ -675,6 +871,69 @@ class Linter:
             if rel not in self.raw_references:
                 self.error("RAW_UNREFERENCED", path, "어떤 출처 페이지의 raw_sources 또는 attachments에도 등록되지 않았습니다.")
 
+    def validate_raw_removal_manifest(self) -> None:
+        manifest_path = ROOT / "raw-removal-approvals.json"
+        if not manifest_path.is_file():
+            self.error("RAW_APPROVAL_MANIFEST", manifest_path, "raw 삭제 승인 manifest가 없습니다.")
+            return
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.error("RAW_APPROVAL_MANIFEST", manifest_path, f"raw 삭제 승인 manifest를 읽을 수 없습니다: {exc}")
+            return
+        if payload.get("version") != 1 or not isinstance(payload.get("approvals"), list):
+            self.error("RAW_APPROVAL_SCHEMA", manifest_path, "manifest는 version: 1과 approvals 목록을 가져야 합니다.")
+            return
+        seen: set[str] = set()
+        for index, approval in enumerate(payload["approvals"], start=1):
+            if not isinstance(approval, dict):
+                self.error("RAW_APPROVAL_ITEM", manifest_path, f"승인 {index}번째 항목은 매핑이어야 합니다.")
+                continue
+            required = {"id", "path", "sha256", "reason", "approval_ref", "approved_on"}
+            missing = required - set(approval)
+            if missing:
+                self.error("RAW_APPROVAL_REQUIRED", manifest_path, f"승인 {index}번째 항목에 필수 키가 없습니다: {', '.join(sorted(missing))}")
+            raw_path = approval.get("path")
+            if not isinstance(raw_path, str) or not raw_path.startswith("raw/") or PurePosixPath(raw_path).as_posix() != raw_path:
+                self.error("RAW_APPROVAL_PATH", manifest_path, f"승인 경로는 정규화된 raw/...여야 합니다: {raw_path}")
+            if isinstance(raw_path, str) and raw_path in seen:
+                self.error("RAW_APPROVAL_DUPLICATE", manifest_path, f"승인 경로가 중복됩니다: {raw_path}")
+            if isinstance(raw_path, str):
+                seen.add(raw_path)
+            if not isinstance(approval.get("sha256"), str) or not SHA256_RE.fullmatch(approval.get("sha256", "")):
+                self.error("RAW_APPROVAL_HASH", manifest_path, f"승인 {index}번째 항목의 sha256은 64자리 해시여야 합니다.")
+            approved_on = approval.get("approved_on")
+            if not isinstance(approved_on, str) or not is_valid_date(approved_on):
+                self.error("RAW_APPROVAL_DATE", manifest_path, f"승인 {index}번째 항목의 approved_on이 날짜가 아닙니다.")
+
+    def validate_raw_removal_manifest_history(self, base: str) -> None:
+        """Keep previously recorded raw-removal approvals append-only."""
+        ok, base_text, _ = run_git("show", f"{base}:raw-removal-approvals.json")
+        if not ok:
+            # The manifest was introduced by v2; a missing file at the base is
+            # expected for the migration commit.
+            return
+        current_path = ROOT / "raw-removal-approvals.json"
+        if not current_path.is_file():
+            self.error("RAW_APPROVAL_HISTORY", current_path, "기준에 있던 raw 삭제 승인 manifest를 삭제할 수 없습니다.")
+            return
+        try:
+            old_payload = json.loads(base_text)
+            new_payload = json.loads(current_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            self.error("RAW_APPROVAL_HISTORY", current_path, f"raw 삭제 승인 manifest 이력을 비교할 수 없습니다: {exc}")
+            return
+        old_approvals = old_payload.get("approvals") if isinstance(old_payload, dict) else None
+        new_approvals = new_payload.get("approvals") if isinstance(new_payload, dict) else None
+        if not isinstance(old_approvals, list) or not isinstance(new_approvals, list):
+            return
+        if len(new_approvals) < len(old_approvals):
+            self.error("RAW_APPROVAL_APPEND_ONLY", current_path, "기준 manifest의 승인 항목은 삭제할 수 없습니다.")
+            return
+        for index, old_approval in enumerate(old_approvals):
+            if new_approvals[index] != old_approval:
+                self.error("RAW_APPROVAL_APPEND_ONLY", current_path, f"기존 raw 삭제 승인 {index + 1}번째 항목을 수정하거나 순서를 바꿀 수 없습니다.")
+
     def resolve_page(self, target: str) -> tuple[Page | None, str | None]:
         cleaned = target.strip().replace("\\", "/")
         if cleaned.endswith(".md"):
@@ -716,7 +975,7 @@ class Linter:
                     continue
                 if target_page.rel == page.rel:
                     self.error("LINK_SELF", page.path, f"자기 페이지로 향하는 링크입니다: `[[{link_target}]]`", line)
-                if page.expected_type in {"source", "concept", "entity", "analysis"} and target_page.expected_type == "source":
+                if page.expected_type in {"source", "concept", "entity", "analysis", "case"} and target_page.expected_type == "source":
                     self.error("LINK_SOURCE_CITATION", page.path, "본문에서 출처 요약 페이지를 인용 링크로 연결하지 말고 source_refs를 사용하세요.", line)
                 if section is not None and section.strip():
                     self.validate_section_link(page, target_page, section.strip(), link_target, line)
@@ -739,7 +998,7 @@ class Linter:
         current_section: str | None = None
         listed: dict[str, int] = {}
         body_lines = remove_fenced_code(index.body, strip_inline_code=False).splitlines()
-        entry_re = re.compile(r"^\s*-\s+\[\[([^\]]+)\]\]\s+—\s+.+\s+\(소스\s+(\d+)개\)\s*$")
+        entry_re = re.compile(r"^\s*-\s+\[\[([^\]]+)\]\]\s+—\s+.+\s+\((?:소스|근거)\s+(\d+)개(?:\s+·.*)?\)\s*$")
         for offset, raw_line in enumerate(body_lines):
             line_no = index.body_start_line + offset
             heading = re.match(r"^##\s+(.+?)\s*$", raw_line)
@@ -786,6 +1045,8 @@ class Linter:
             self.error("INDEX_COVERAGE_MISSING", index.path, f"색인에 누락된 페이지입니다: `{rel}`")
         for rel in extra:
             self.error("INDEX_COVERAGE_EXTRA", index.path, f"존재하지 않는 색인 항목입니다: `{rel}`", listed[rel])
+        if "<!-- BEGIN GENERATED CATALOG -->" not in index.body or "<!-- END GENERATED CATALOG -->" not in index.body:
+            self.error("INDEX_GENERATED_MARKER", index.path, "색인에는 자동 생성 구간 표식이 필요합니다.")
 
     def validate_log(self) -> None:
         log = self.page_by_rel.get("log.md")
@@ -829,6 +1090,7 @@ class Linter:
             return
         self.validate_raw_immutability(base)
         self.validate_raw_commit_history(base)
+        self.validate_raw_removal_manifest_history(base)
         self.validate_source_id_stability(base)
         self.validate_log_append_only(base)
         self.validate_wiki_log_update(base)
@@ -841,8 +1103,28 @@ class Linter:
         for status, paths in changes:
             if status == "A":
                 continue
+            if status == "D" and len(paths) == 1 and self.approved_raw_removal(base, paths[0]):
+                continue
             joined = " -> ".join(paths)
             self.error("RAW_IMMUTABLE", joined, f"기준 `{base}`에 있던 raw 파일은 수정·삭제·이동할 수 없습니다(상태 {status}).")
+
+    def approved_raw_removal(self, base: str, raw_path: str) -> bool:
+        manifest_path = ROOT / "raw-removal-approvals.json"
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        for approval in payload.get("approvals", []):
+            if not isinstance(approval, dict) or approval.get("path") != raw_path:
+                continue
+            process = subprocess.run(
+                ["git", "-C", str(ROOT), "-c", "core.quotepath=false", "show", f"{base}:{raw_path}"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+            )
+            if process.returncode != 0:
+                return False
+            return hashlib.sha256(process.stdout).hexdigest().lower() == str(approval.get("sha256", "")).lower()
+        return False
 
     def validate_raw_commit_history(self, base: str) -> None:
         ok, output, stderr = run_git("rev-list", "--reverse", f"{base}..HEAD")
@@ -863,6 +1145,8 @@ class Linter:
                 continue
             for status, paths in changes:
                 if status == "A":
+                    continue
+                if status == "D" and len(paths) == 1 and self.approved_raw_removal(parents[0], paths[0]):
                     continue
                 joined = " -> ".join(paths)
                 self.error("RAW_HISTORY_IMMUTABLE", joined, f"커밋 `{commit[:12]}`에서 raw 파일을 수정·삭제·이동했습니다(상태 {status}). 기준 이후 각 커밋에는 새 파일 추가만 허용됩니다.")
@@ -955,7 +1239,7 @@ class Linter:
                 continue
             if not value.startswith("wiki/") or value == "wiki/":
                 continue
-            if value.endswith(".md"):
+            if value.endswith(".md") or PurePosixPath(value).suffix:
                 exact_paths.add(PurePosixPath(value).as_posix())
                 continue
             trimmed = value.rstrip("/")

@@ -5,6 +5,8 @@ import {
   confidenceLabel,
   encodeRoute,
   legalStatusLabel,
+  normativeStatusLabel,
+  recordStatusLabel,
   siteHref,
   sourceTypeLabel,
   statusLabel
@@ -66,7 +68,7 @@ function pageStatusTone(status) {
 }
 
 function legalStatusTone(status) {
-  if (status === "current") return "current";
+  if (status === "current" || status === "available") return "current";
   if (status === "uncertain") return "warning";
   return "muted";
 }
@@ -76,8 +78,11 @@ function pageStatusBadge(page) {
 }
 
 function legalStatusBadge(page) {
-  if (!page.data.legal_status) return "";
-  return `<span class="legal-status legal-status-${escapeAttr(page.data.legal_status)} status-tone-${legalStatusTone(page.data.legal_status)}">${escapeHtml(legalStatusLabel(page.data.legal_status))}</span>`;
+  const isSource = page.category === "sources";
+  const status = isSource ? page.data.record_status : page.data.normative_status;
+  if (!status) return "";
+  const label = isSource ? recordStatusLabel(status) : normativeStatusLabel(status);
+  return `<span class="legal-status legal-status-${escapeAttr(status)} status-tone-${legalStatusTone(status)}">${escapeHtml(label)}</span>`;
 }
 
 function renderReaderSettings() {
@@ -94,7 +99,7 @@ function renderReaderSettings() {
 }
 
 function renderTopbar({ basePath, repositoryUrl, currentPage, currentCategory }) {
-  const primary = ["concepts", "analyses", "entities", "sources"]
+  const primary = ["concepts", "analyses", "entities", "cases", "sources"]
     .map((category) => {
       const current = currentCategory === category ? ' aria-current="page"' : "";
       return `<a href="${siteHref(basePath, `/${category}/`)}"${current}>${escapeHtml(CATEGORY_META[category].shortLabel)}</a>`;
@@ -183,7 +188,7 @@ function renderSearchDialog(basePath) {
             <label><span>상태</span><select data-search-status><option value="">전체</option><option value="active">활성</option><option value="draft">초안</option><option value="review">검토</option><option value="archived">보관</option></select></label>
             <label><span>영역</span><select data-search-area><option value="">전체</option>${areaOptions}</select></label>
             <label><span>자료</span><select data-search-source-type><option value="">전체</option>${sourceTypeOptions}</select></label>
-            <label><span>법적 상태</span><select data-search-legal-status><option value="">전체</option><option value="current">현행</option><option value="amended">개정됨</option><option value="repealed">폐지됨</option><option value="overruled">판례 변경</option><option value="superseded">대체됨</option><option value="uncertain">확인 필요</option></select></label>
+            <label><span>규범·기록 상태</span><select data-search-legal-status><option value="">전체</option><option value="current">현행</option><option value="available">확인 가능</option><option value="amended">개정됨</option><option value="repealed">폐지됨</option><option value="overruled">판례 변경</option><option value="superseded">대체됨</option><option value="withdrawn">철회됨</option><option value="retracted">철회·정정</option><option value="uncertain">확인 필요</option></select></label>
             <label><span>날짜 정보</span><select data-search-date-kind><option value="">전체</option><option value="asOfDate">지식 기준일 있음</option><option value="effectiveDate">시행일 있음</option><option value="decisionDate">결정일 있음</option></select></label>
           </div>
           <div class="search-filter-actions">
@@ -198,12 +203,13 @@ function renderSearchDialog(basePath) {
 }
 
 function renderFooter({ basePath, stats }) {
-  const knowledgeDate = stats.knowledgeAsOf || stats.latestContentUpdated;
+  const knowledgeDate = stats.knowledgeAsOf || stats.latestChecked || stats.latestContentUpdated;
   return `
     <footer class="site-footer">
       <p>이 위키는 법률 자문이 아니라 법령 버전과 근거 범위를 드러내는 백과사전적 지식베이스입니다.</p>
       <div>
-        ${knowledgeDate ? `<span>지식 기준일 ${renderTime(knowledgeDate)}</span>` : ""}
+        ${knowledgeDate ? `<span>최근 확인 ${renderTime(knowledgeDate)}</span>` : ""}
+        <a href="${siteHref(basePath, "/freshness/")}">최신성 현황</a>
         ${stats.latestContentUpdated ? `<span>콘텐츠 수정 ${renderTime(stats.latestContentUpdated)}</span>` : ""}
         ${stats.latestUpdated && stats.latestUpdated !== stats.latestContentUpdated ? `<span>운영 기록 ${renderTime(stats.latestUpdated)}</span>` : ""}
         <a href="${siteHref(basePath, "/meta/출처-추적-및-최신성-관리/")}">출처 관리 원칙</a>
@@ -235,8 +241,9 @@ function renderEvidenceStrip(page) {
   add("지식 기준일", renderTime(page.data.as_of_date));
   add("시행일", renderTime(page.data.effective_date));
   if (!page.data.effective_date) add("결정일", renderTime(page.data.decision_date));
+  add("최종 확인", renderTime(page.data.last_checked));
   add("최종 수정", renderTime(page.data.updated));
-  add("법적 상태", legalStatusBadge(page), "fact-legal-status");
+  add(page.category === "sources" ? "기록 상태" : "규범 상태", legalStatusBadge(page), "fact-legal-status");
   add("근거 확신", escapeHtml(confidenceLabel(page.data.confidence)));
   if (page.sourceCount) {
     const value = page.category === "sources"
@@ -245,6 +252,7 @@ function renderEvidenceStrip(page) {
     add(page.category === "sources" ? "원문 기록" : "연결 근거", escapeHtml(value));
   }
   add("다음 검토", renderTime(page.data.next_review_date), "fact-review-date status-tone-review");
+  add("검토 기한", renderTime(page.data.review_due), "fact-review-date status-tone-review");
   return `<dl class="page-facts evidence-strip" aria-label="문서 신뢰 정보">${facts.join("")}</dl>`;
 }
 
@@ -269,6 +277,8 @@ function renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef }) {
     ["출처 ID", data.source_id],
     ["자료 유형", sourceTypeLabel(data.source_type)],
     ["발행기관·매체", data.publisher],
+    ["작성자", data.author],
+    ["판정기관", data.adjudicating_body || data.reported_authority],
     ["발행일", data.publication_date || data.publication_period],
     ["결정일", data.decision_date],
     ["기준일", data.as_of_date],
@@ -284,8 +294,10 @@ function renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef }) {
   };
   const rawLinks = data.raw_sources.map((file) => `<li><a href="${escapeAttr(repoFileLink(file))}" target="_blank" rel="noopener noreferrer">${escapeHtml(path.posix.basename(file))} ${svgIcon("external")}</a></li>`).join("");
   const attachmentLinks = data.attachments.map((file) => `<li><a href="${escapeAttr(repoFileLink(file))}" target="_blank" rel="noopener noreferrer">첨부: ${escapeHtml(path.posix.basename(file))} ${svgIcon("external")}</a></li>`).join("");
-  const related = page.relatedSources.map((source) => `<li><a href="${siteHref(basePath, source.route)}">${escapeHtml(source.data.title)}</a></li>`).join("");
+  const relationLabels = { same_matter: "같은 사안", updates: "갱신", supersedes: "대체", appeal_of: "항소·상고", interprets: "해석", amends: "개정" };
+  const related = page.sourceRelations.map((relation) => `<li><span>${escapeHtml(relationLabels[relation.type] || relation.type)}</span><a href="${siteHref(basePath, relation.source.route)}">${escapeHtml(relation.source.data.title)}</a></li>`).join("");
   const superseded = page.supersedingSource ? `<p class="superseded-link"><span>대체 자료</span><a href="${siteHref(basePath, page.supersedingSource.route)}">${escapeHtml(page.supersedingSource.data.title)}</a></p>` : "";
+  const cases = page.casePages?.length ? `<div class="related-sources"><h3>연결 사건</h3><ul>${page.casePages.map((candidate) => `<li><a href="${siteHref(basePath, candidate.route)}">${escapeHtml(candidate.data.title)}</a></li>`).join("")}</ul></div>` : "";
   const links = sourceUrls || rawLinks || attachmentLinks ? `<div class="record-links">
     ${sourceUrls ? `<section><h3>웹 원문</h3><ul>${sourceUrls}</ul></section>` : ""}
     ${rawLinks || attachmentLinks ? `<section><h3>저장 원본</h3><ul>${rawLinks}${attachmentLinks}</ul></section>` : ""}
@@ -294,7 +306,8 @@ function renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef }) {
     <header><h2 id="source-record-title">출처 기록</h2></header>
     <dl>${details}</dl>
     ${links}
-    ${related ? `<div class="related-sources"><h3>직접 관련 자료</h3><ul>${related}</ul></div>` : ""}
+    ${related ? `<div class="related-sources"><h3>출처 관계</h3><ul>${related}</ul></div>` : ""}
+    ${cases}
     ${superseded}
   </section>`;
 }
@@ -353,8 +366,8 @@ function renderPrevNext(page, wiki, basePath) {
   </nav>`;
 }
 
-function renderHomeSearch(basePath) {
-  const suggestions = ["통상임금", "해고", "근로시간", "산업재해", "원하청 교섭"];
+function renderHomeSearch(basePath, wiki) {
+  const suggestions = wiki.stats.researchSuggestions ?? [];
   return `<section class="research-search" aria-label="문서 검색">
     <button class="research-search-launch" type="button" data-search-open>${svgIcon("search")}<span>확인하려는 개념이나 사건번호를 입력하세요</span><kbd>/</kbd></button>
     <div class="research-search-suggestions"><span>바로 찾기</span>${suggestions.map((query) => `<button type="button" data-search-open data-search-preset-query="${escapeAttr(query)}">${escapeHtml(query)}</button>`).join("")}</div>
@@ -364,10 +377,12 @@ function renderHomeSearch(basePath) {
 function renderResearchMeta(wiki, basePath) {
   const documents = wiki.pages.filter((page) => page.category !== "meta").length;
   const facts = [
-    ["지식 기준일", renderTime(wiki.stats.knowledgeAsOf || wiki.stats.latestContentUpdated)],
+    ["최근 확인", renderTime(wiki.stats.latestChecked || wiki.stats.latestContentUpdated)],
+    ["기준일 커버리지", `<a href="${siteHref(basePath, "/freshness/")}"><strong>${wiki.stats.asOfCoverage}</strong>%</a>`],
     ["문서", `<strong>${documents}</strong>개`],
     ["출처", `<a href="${siteHref(basePath, "/sources/")}"><strong>${wiki.stats.sources}</strong>개</a>`],
-    ["검토 필요", `<button type="button" data-search-open data-search-preset-status="review"><strong>${wiki.stats.statuses.review ?? 0}</strong>개</button>`]
+    ["검토 필요", `<button type="button" data-search-open data-search-preset-status="review"><strong>${wiki.stats.statuses.review ?? 0}</strong>개</button>`],
+    ["기한 경과", `<a href="${siteHref(basePath, "/freshness/")}#overdue"><strong>${wiki.stats.overdueCount}</strong>개</a>`]
   ];
   return `<dl class="research-meta" aria-label="지식베이스 현황">${facts.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join("")}</dl>`;
 }
@@ -400,7 +415,7 @@ function renderResearchDesk(wiki, basePath) {
 
 function renderResearchWorkbench({ page, articleHtml, wiki, basePath }) {
   return `<section class="research-workbench" aria-label="노동법 리서치 데스크">
-    <header class="research-workbench-head"><div class="research-workbench-copy"><p class="page-kicker">대한민국 노동법 리서치</p><h1>${escapeHtml(page.data.title)}</h1><p>${escapeHtml(page.excerpt)}</p></div>${renderHomeSearch(basePath)}</header>
+    <header class="research-workbench-head"><div class="research-workbench-copy"><p class="page-kicker">대한민국 노동법 리서치</p><h1>${escapeHtml(page.data.title)}</h1><p>${escapeHtml(page.excerpt)}</p></div>${renderHomeSearch(basePath, wiki)}</header>
     ${renderResearchDesk(wiki, basePath)}
     ${renderResearchMeta(wiki, basePath)}
     <details class="home-about"><summary>위키 기준과 운영 현황 자세히 보기</summary><article class="prose home-description">${articleHtml}</article></details>
@@ -510,6 +525,7 @@ export function renderPage({ page, rendered, wiki, basePath, siteUrl, repository
     basePath,
     repositoryUrl,
     siteUrl,
+    noindex: page.data.status !== "active",
   });
 }
 
@@ -558,11 +574,28 @@ export function renderCategoryPage({ category, wiki, basePath, siteUrl, reposito
   });
 }
 
+export function renderFreshnessPage({ wiki, basePath, siteUrl, repositoryUrl }) {
+  const rows = Object.entries(wiki.stats.freshnessByArea).map(([area, value]) => `<tr><th scope="row">${escapeHtml(area)}</th><td>${value.covered}/${value.total}</td><td>${value.latest ? renderTime(value.latest) : "—"}</td><td>${value.overdue ? `<strong>${value.overdue}</strong>` : "0"}</td></tr>`).join("");
+  const overdue = wiki.pages.filter((page) => page.data.review_due && page.data.review_due < new Date().toISOString().slice(0, 10)).sort((a, b) => String(a.data.review_due).localeCompare(String(b.data.review_due)));
+  const overdueRows = overdue.map((page) => `<li><a href="${siteHref(basePath, page.route)}">${escapeHtml(page.data.title)}</a><time datetime="${escapeAttr(page.data.review_due)}">${escapeHtml(displayDate(page.data.review_due))}</time></li>`).join("");
+  const main = `<main id="main-content" class="main-content main-content--category category-main freshness-main">
+    <div class="category-shell">
+      <nav class="breadcrumbs" aria-label="현재 위치"><a href="${siteHref(basePath, "/")}">홈</a><span>/</span><span>최신성 현황</span></nav>
+      <header class="category-hero"><div><p class="page-kicker">운영 지표</p><h1>최신성 현황</h1><p>출처 확인일과 법적 기준일의 커버리지를 영역별로 확인합니다.</p></div></header>
+      <dl class="research-meta freshness-summary"><div><dt>최근 확인</dt><dd>${renderTime(wiki.stats.latestChecked)}</dd></div><div><dt>기준일 커버리지</dt><dd><strong>${wiki.stats.asOfCoverage}%</strong></dd></div><div><dt>기한 경과</dt><dd><strong>${wiki.stats.overdueCount}</strong>개</dd></div></dl>
+      <section class="freshness-table" aria-labelledby="freshness-table-title"><h2 id="freshness-table-title">법적 영역별 커버리지</h2><table><thead><tr><th scope="col">영역</th><th scope="col">기준일 있음</th><th scope="col">최근 기준일</th><th scope="col">기한 경과</th></tr></thead><tbody>${rows}</tbody></table></section>
+      <section id="overdue" class="freshness-overdue" aria-labelledby="freshness-overdue-title"><h2 id="freshness-overdue-title">검토 기한 경과 문서</h2>${overdueRows ? `<ul>${overdueRows}</ul>` : "<p>기한이 지난 문서가 없습니다.</p>"}</section>
+    </div>
+  </main>`;
+  return renderShell({ wiki, currentCategory: null, title: "최신성 현황", description: "대한민국 노동법 위키의 출처 기준일과 검토 기한 현황입니다.", canonical: absoluteUrl(siteUrl, "/freshness/"), main, basePath, repositoryUrl, siteUrl, pageKind: "collection" });
+}
+
 export function renderCatalogPage({ page, wiki, basePath, siteUrl, repositoryUrl }) {
   const catalogCategory = (candidate) => candidate.route === "/" ? "home" : candidate.category;
   const catalogCategories = [
     { id: "home", label: "홈", anchor: "홈" },
     { id: "meta", label: CATEGORY_META.meta.shortLabel, anchor: "메타" },
+    { id: "cases", label: CATEGORY_META.cases.shortLabel, anchor: "사건" },
     { id: "sources", label: CATEGORY_META.sources.shortLabel, anchor: "소스" },
     { id: "concepts", label: CATEGORY_META.concepts.shortLabel, anchor: "개념" },
     { id: "entities", label: CATEGORY_META.entities.shortLabel, anchor: "개체" },

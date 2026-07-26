@@ -3,6 +3,16 @@
 이 문서는 LLM이 대한민국 노동법 위키를 유지·관리할 때 따라야 할 규칙, 구조, 워크플로를 정의합니다.
 사용자가 소스를 추가하거나, 질문을 던지거나, 위키를 점검하라고 요청할 때 이 스키마를 기준으로 작업합니다.
 
+> **Schema v2 authoritative note (2026-07-26)**
+>
+> 이 문서의 v1 예시와 기존 필드 설명은 v2 마이그레이션 전환 기록으로만 남겨 둡니다. 현재 커밋에서 자동 검사가 적용하는 정본은 [`schema/wiki-v2.json`](schema/wiki-v2.json)입니다. v2에서는 `wiki/cases/` 사건 계층과 `wiki/data/research-issues.json` 연구 데이터가 추가되고, 색인은 `scripts/sync_wiki.py`로 생성합니다.
+>
+> - 출처의 `legal_status`, `related_source_refs`, `superseded_by`는 사용하지 않습니다. 각각 `record_status`와 `source_relations`(`updates`, `supersedes`, `same_matter`, `appeal_of`, `interprets`, `amends`)로 표현합니다.
+> - 일반 문서의 `legal_status`는 `normative_status`로 전환합니다. `as_of_date`, `review_due`, `review_reason`은 일반 문서 최신성 지표이고 `next_review_date`는 사건에만 사용합니다.
+> - 사건은 `case_id`, `case_numbers`, `adjudicating_body`, `parties`, `party_entity_refs`, `issue_refs`, `source_refs`, `decision_source_refs`, `event_status`, `verification_status`, `last_checked`를 갖고, 공개되지 않은 공식 결정서는 빈 `decision_source_refs`와 `verification_status: partial`로 명시합니다.
+> - 모든 실체 페이지에는 20~200자 `summary`가 필요합니다. 날짜·사건번호·수치·결론을 포함한 고위험 문단은 `[@SRC-ID]`, `[@SRC-ID#p=42]`, `[@SRC-ID#para=17]`, `[@SRC-ID#art=29-3]` 표식을 사용합니다.
+> - `raw/`는 여전히 불변입니다. 향후 승인된 삭제가 필요하면 루트 `raw-removal-approvals.json`의 append-only 승인 항목과 출처의 `removed_raw_refs` tombstone을 함께 남깁니다. 이번 전환에서는 raw 파일을 삭제하지 않았습니다.
+
 ---
 
 ## 1. 디렉토리 구조

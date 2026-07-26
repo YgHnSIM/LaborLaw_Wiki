@@ -41,6 +41,9 @@ jobs:
       - name: Run linter unit tests
         run: python -I -B -m unittest discover -s tests -p "test_*.py"
 
+      - name: Validate generated catalog
+        run: python -I -B scripts/sync_wiki.py --check
+
       - name: Test site generator
         run: npm test
 

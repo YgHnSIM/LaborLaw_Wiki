@@ -1,10 +1,11 @@
 ---
 title: 작업 기록
-aliases: [로그, 변경 이력]
-tags: [type/meta, domain/labor-law, status/active]
+aliases: ["로그", "변경 이력"]
+tags: ["type/meta", "domain/labor-law", "status/active"]
 created: 2026-06-01
 updated: 2026-07-26
 status: active
+summary: "AGENTS.md를 대한민국 노동법 위키 운영에 맞게 개정함. - 입법 과정 및 역사적 맥락 분석을 wiki/analyses/의 주요 문서 유형으로 추가함. - 공식 소스 우선순위, 노동법 전용 메타데이터, 태그 체계, 핵심 개념 축을 추가함. - 루트 README.md를 생성해 프로젝트 개요와 운영 원칙을 정리함. - 초기 wiki/index.md,…"
 source_refs: []
 ---
 
@@ -1331,6 +1332,15 @@ source_refs: []
 
 - `wiki/sources/사용자의 의미와 교섭창구단일화에 대한 검토.md`에서 교섭창구 단일화 관련 용어의 띄어쓰기와 병렬 문장 종결을 다듬음.
 - 내용과 출처 정보는 변경하지 않음.
+
+## [2026-07-26] refactor | 위키 스키마 v2·사건 모델·웹 최신성 전환
+
+- `schema/`, `scripts/`, `wiki/`, `site/`에 중앙 스키마 v2, 출처 관계·사건 계층, 자동 색인·최신성 지표와 상태·인용 검증을 반영함.
+- 변경 범위: `wiki/analyses/`, `wiki/concepts/`, `wiki/entities/`, `wiki/sources/`, `wiki/cases/`, `wiki/meta/`, `wiki/data/`, `wiki/index.md`, `scripts/`, `site/`, `schema/`.
+- 운영 문서: `AGENTS.md`, `README.md`에 v2 필드·사건·색인·최신성·raw 승인 정책을 반영함.
+- 승인 장부: `raw-removal-approvals.json`을 빈 append-only v1 manifest로 추가함(이번 작업에서 raw 삭제 없음).
+- 추가 파일: `wiki/data/research-issues.json`, `wiki/overview.md`.
+- `raw/` 원본은 수정·이동·삭제하지 않았으며, 기존 source_id와 로그 항목은 보존함.
 
 ## 관련 항목
 

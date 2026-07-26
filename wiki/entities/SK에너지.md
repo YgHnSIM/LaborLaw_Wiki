@@ -1,22 +1,28 @@
 ---
 title: SK에너지
-aliases: [SK Energy]
-tags: [type/entity, domain/labor-law, status/active]
+aliases: ["SK Energy"]
+tags: ["type/entity", "domain/labor-law", "status/active"]
 created: 2026-07-10
 updated: 2026-07-10
 status: active
-source_refs: [SRC-C943D804F0]
+summary: SK에너지는 개정 노동조합법 시행 뒤 하청노동조합의 원청 상대 교섭단위 분리 필요성이 문제 된 정유업 원청 사업자다.
+source_refs: ["SRC-C943D804F0"]
+review_due: 2026-08-26
+review_reason: 정기 출처·법령 최신성 점검
+entity_id: ENT-1CEAA6A891
+entity_type: organization
 legal_area: 집단노동
 authority: 기타
-legal_status: current
+normative_status: current
 confidence: medium
+as_of_date: 2026-07-10
 ---
 
 # SK에너지
 
 ## 개요
 
-SK에너지는 개정 노동조합법 시행 뒤 하청노동조합의 원청 상대 [[교섭단위 분리]] 필요성이 문제 된 정유업 원청 사업자다.
+SK에너지는 개정 노동조합법 시행 뒤 하청노동조합의 원청 상대 [[교섭단위 분리]] 필요성이 문제 된 정유업 원청 사업자다. [@SRC-C943D804F0]
 
 ## 교섭단위 분리 사건
 

@@ -1,10 +1,11 @@
 ---
 title: JDC 교섭절차 이행 백화점 면세점 첫 원청교섭 초읽기
-aliases: [JDC 첫 원청교섭, 백면노조 JDC 교섭, 제주국제자유도시개발센터 원청교섭]
-tags: [type/source, domain/labor-law, area/collective-labor, status/active]
+aliases: ["JDC 첫 원청교섭", "백면노조 JDC 교섭", "제주국제자유도시개발센터 원청교섭"]
+tags: ["type/source", "domain/labor-law", "area/collective-labor", "status/active"]
 created: 2026-06-08
 updated: 2026-07-10
 status: active
+summary: 제주지방노동위원회가 제주국제자유도시개발센터의 원청 사용자성을 인정한 뒤, JDC가 백화점면세점판매서비스노동조합과의 교섭절차를 이행하겠다고 밝힌 과정을 보도한 기사다. 백면노조의 교섭단위 분리 신청으로 교섭요구 사실 공고 절차가 일시 정지된 점도 함께 정리한다.
 source_id: SRC-79610D6485
 source_type: news
 publisher: 노동법률
@@ -12,15 +13,14 @@ raw_sources: ["raw/JDC “교섭절차 이행”…‘백화점ㆍ면세점’ �
 raw_sha256: ["e4e98f002f8d5a308cbc165bc8fbc12e68d87e92411e9ea61327cfe79b143e97"]
 source_urls: ["https://www.worklaw.co.kr/main2022/view/view.asp?bi_pidx=39118"]
 retrieved: 2026-07-10
-related_source_refs: [SRC-AD9485117E]
+source_relations: [{"type": "same_matter", "target": "SRC-AD9485117E"}, {"type": "supersedes", "target": "SRC-AD9485117E"}]
+record_status: available
 legal_area: 집단노동
 authority: 기타
 publication_date: 2026-04-24
-reported_decision_dates: [2026-04-09]
-legal_status: superseded
-event_status: superseded
-superseded_by: SRC-AD9485117E
+reported_decision_dates: ["2026-04-09"]
 confidence: medium
+case_refs: ["CASE-JDC-2026-04-09"]
 ---
 
 # JDC 교섭절차 이행 백화점 면세점 첫 원청교섭 초읽기
