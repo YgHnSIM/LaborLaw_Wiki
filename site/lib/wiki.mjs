@@ -1,19 +1,19 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { RESEARCH_ISSUES } from "./research-issues.mjs";
 import { extractWikiLinks, replaceWikiLinks, stripSourceCitations } from "./wiki-syntax.mjs";
 
 export { extractWikiLinks };
 
-export const CATEGORY_ORDER = ["concepts", "analyses", "entities", "sources", "meta"];
+export const CATEGORY_ORDER = ["concepts", "analyses", "entities", "cases", "sources", "meta"];
 
 export const CATEGORY_META = {
   concepts: { label: "개념", shortLabel: "개념", number: "01", description: "조문과 판단기준, 노동법의 핵심 개념" },
   analyses: { label: "분석", shortLabel: "분석", number: "02", description: "판례·행정해석·입법과정의 비교와 해설" },
   entities: { label: "개체", shortLabel: "기관·단체", number: "03", description: "법원, 위원회, 행정기관과 주요 당사자" },
-  sources: { label: "출처", shortLabel: "출처", number: "04", description: "법령·판례·행정자료와 원문 계보" },
-  meta: { label: "운영", shortLabel: "운영", number: "05", description: "전체 색인, 작업 기록과 관리 방법론" }
+  cases: { label: "사건", shortLabel: "사건", number: "04", description: "원하청 교섭과 노동위원회 사건의 진행·판정 기록" },
+  sources: { label: "출처", shortLabel: "출처", number: "05", description: "법령·판례·행정자료와 원문 계보" },
+  meta: { label: "운영", shortLabel: "운영", number: "06", description: "전체 색인, 작업 기록과 관리 방법론" }
 };
 
 const STATUS_LABELS = {
@@ -62,6 +62,14 @@ export function sourceTypeLabel(sourceType) {
 
 export function legalStatusLabel(status) {
   return LEGAL_STATUS_LABELS[status] ?? String(status ?? "");
+}
+
+export function recordStatusLabel(status) {
+  return { available: "확인 가능", superseded: "대체됨", withdrawn: "철회됨", retracted: "철회·정정" }[status] ?? String(status ?? "");
+}
+
+export function normativeStatusLabel(status) {
+  return { current: "현행", amended: "개정됨", repealed: "폐지됨", overruled: "판례 변경", uncertain: "확인 필요" }[status] ?? String(status ?? "");
 }
 
 export function confidenceLabel(confidence) {
@@ -117,6 +125,10 @@ export function pageRoute(relativePath, data) {
     if (!data.source_id) throw new Error(`${relativePath}: source_id가 없습니다.`);
     return `/sources/${slugifySegment(data.source_id)}/`;
   }
+  if (directory === "cases") {
+    const caseId = data.case_id || stem;
+    return `/cases/${slugifySegment(caseId)}/`;
+  }
 
   const category = directory || "meta";
   const slug = slugifySegment(stem);
@@ -141,16 +153,17 @@ function normalizeFrontmatter(data) {
   const stringFields = [
     "title", "created", "updated", "status", "source_id", "source_type", "publisher",
     "retrieved", "publication_date", "publication_period", "decision_date", "effective_date",
-    "as_of_date", "promulgation_date", "legal_area", "authority", "legal_status", "confidence",
-    "event_status", "next_review_date", "version", "law_number", "superseded_by"
+    "as_of_date", "promulgation_date", "legal_area", "authority", "record_status", "normative_status", "confidence",
+    "event_status", "next_review_date", "last_checked", "review_due", "version", "law_number", "case_id", "entity_id", "entity_type",
+    "verification_status", "adjudicating_body", "review_reason", "summary", "publisher", "author"
   ];
   for (const field of stringFields) {
     if (field in result) result[field] = stringifyScalar(result[field]);
   }
   const listFields = [
-    "aliases", "tags", "source_refs", "raw_sources", "raw_sha256", "attachments",
-    "source_urls", "related_source_refs", "reported_decision_dates", "staged_effective_dates",
-    "bill_numbers", "key_dates"
+    "aliases", "tags", "source_refs", "background_source_refs", "decision_source_refs", "raw_sources", "raw_sha256", "attachments",
+    "source_urls", "case_numbers", "parties", "party_entity_refs", "issue_refs", "case_refs",
+    "reported_decision_dates", "staged_effective_dates", "bill_numbers", "key_dates", "removed_raw_refs"
   ];
   for (const field of listFields) {
     result[field] = Array.isArray(result[field]) ? result[field].map(stringifyScalar) : [];
@@ -162,6 +175,17 @@ function normalizeFrontmatter(data) {
   } else {
     result.case_decisions = [];
   }
+  if (Array.isArray(result.source_relations)) {
+    result.source_relations = result.source_relations.map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return {};
+      return Object.fromEntries(Object.entries(entry).map(([key, value]) => [key, stringifyScalar(value)]));
+    });
+  } else {
+    result.source_relations = [];
+  }
+  // Runtime compatibility for consumers that still read legal_status.  The
+  // committed v2 frontmatter never writes this legacy key.
+  if (!("legal_status" in result)) result.legal_status = result.normative_status || result.record_status || "";
   return result;
 }
 
@@ -237,17 +261,16 @@ function addResearchIssueMembership(membershipsByRoute, page, issue, stageIds) {
   }
 }
 
-function resolveResearchIssues(pages, titles) {
-  if (RESEARCH_ISSUES.length !== 9) {
-    throw new Error(`research issues: 9개여야 하지만 ${RESEARCH_ISSUES.length}개입니다.`);
-  }
+function resolveResearchIssues(pages, lookup, researchConfig) {
+  const issues = Array.isArray(researchConfig?.issues) ? researchConfig.issues : [];
+  if (!issues.length) throw new Error("research issues: wiki/data/research-issues.json에 issues가 필요합니다.");
 
   const membershipsByRoute = new Map(pages.map((page) => [page.route, []]));
   const issueIds = new Set();
   const issueOrder = new Map();
   const resolvedIssues = [];
 
-  for (const rawIssue of RESEARCH_ISSUES) {
+  for (const rawIssue of issues) {
     const issueId = String(rawIssue?.id ?? "");
     if (!/^[a-z][a-z0-9-]*$/.test(issueId)) {
       throw new Error(`research issues: 잘못된 안정 ID ${issueId || "(빈 값)"}`);
@@ -288,6 +311,7 @@ function resolveResearchIssues(pages, titles) {
       stageIds.add(stageId);
 
       const stageTitleKeys = new Set();
+      const stageRoutes = new Set();
       const stagePages = rawStage.pageRefs.map((pageRef) => {
         const title = String(pageRef ?? "");
         const normalizedTitle = normalizeLookup(title);
@@ -295,11 +319,12 @@ function resolveResearchIssues(pages, titles) {
           throw researchIssueError(issueId, stageId, `중복되었거나 비어 있는 페이지 제목 ${title || "(빈 값)"}`);
         }
         stageTitleKeys.add(normalizedTitle);
-        const page = titles.get(normalizedTitle);
-        if (!page) throw researchIssueError(issueId, stageId, `존재하지 않는 페이지 제목 ${title}`);
-        if (page.data.title !== title) {
-          throw researchIssueError(issueId, stageId, `별칭 대신 실제 페이지 제목을 사용해야 합니다: ${title}`);
+        const page = lookup.get(normalizedTitle);
+        if (!page) throw researchIssueError(issueId, stageId, `존재하지 않는 페이지 제목·별칭·파일명 ${title}`);
+        if (stageRoutes.has(page.route)) {
+          throw researchIssueError(issueId, stageId, `같은 페이지를 제목·별칭·파일명으로 중복 등록했습니다: ${title}`);
         }
+        stageRoutes.add(page.route);
         if (page.category === "sources") {
           throw researchIssueError(issueId, stageId, `출처 페이지는 직접 등록할 수 없습니다: ${title}`);
         }
@@ -376,6 +401,15 @@ async function listMarkdownFiles(directory) {
 
 export async function loadWiki(rootDir) {
   const wikiDir = path.join(rootDir, "wiki");
+  let researchConfig;
+  try {
+    researchConfig = JSON.parse(await fs.readFile(path.join(wikiDir, "data", "research-issues.json"), "utf8"));
+  } catch (error) {
+    throw new Error(`wiki/data/research-issues.json을 읽을 수 없습니다: ${error.message}`);
+  }
+  if (researchConfig.version !== 1 || !Array.isArray(researchConfig.issues) || !Array.isArray(researchConfig.search_suggestions)) {
+    throw new Error("research-issues.json은 version, search_suggestions, issues를 제공해야 합니다.");
+  }
   const files = (await listMarkdownFiles(wikiDir)).sort((a, b) => a.localeCompare(b, "ko"));
   const pages = [];
 
@@ -409,18 +443,18 @@ export async function loadWiki(rootDir) {
       relatedSources: [],
       supersedingSource: null,
       researchIssueIds: [],
-      researchIssueMemberships: []
+      researchIssueMemberships: [],
+      casePages: [],
+      sourceRelations: []
     });
   }
 
   const routeSet = new Set();
   const lookup = new Map();
-  const titles = new Map();
   const sourcesById = new Map();
   for (const page of pages) {
     if (routeSet.has(page.route)) throw new Error(`중복 URL: ${page.route}`);
     routeSet.add(page.route);
-    titles.set(normalizeLookup(page.data.title), page);
     const keys = [page.stem, page.data.title, ...page.data.aliases];
     for (const key of keys) {
       const normalized = normalizeLookup(key);
@@ -437,7 +471,7 @@ export async function loadWiki(rootDir) {
   }
 
   for (const page of pages) {
-    page.sourcePages = page.data.source_refs.map((id) => {
+    page.sourcePages = (page.data.source_refs ?? []).map((id) => {
       const source = sourcesById.get(id);
       if (!source) throw new Error(`${page.relativePath}: 존재하지 않는 source_refs ${id}`);
       source.citedBy.push(page);
@@ -445,15 +479,20 @@ export async function loadWiki(rootDir) {
     });
     page.officialSourceCount = page.sourcePages.filter((source) => source.data.source_type.startsWith("official_")).length;
     page.supportingSourceCount = page.sourcePages.length - page.officialSourceCount;
-    page.relatedSources = page.data.related_source_refs.map((id) => {
-      const source = sourcesById.get(id);
-      if (!source) throw new Error(`${page.relativePath}: 존재하지 않는 related_source_refs ${id}`);
-      return source;
+    page.sourceRelations = (page.data.source_relations ?? []).map((relation) => {
+      const source = sourcesById.get(relation.target);
+      if (!source) throw new Error(`${page.relativePath}: 존재하지 않는 source_relations target ${relation.target}`);
+      return { ...relation, source };
     });
-    if (page.data.superseded_by) {
-      page.supersedingSource = sourcesById.get(page.data.superseded_by);
-      if (!page.supersedingSource) throw new Error(`${page.relativePath}: 존재하지 않는 superseded_by ${page.data.superseded_by}`);
-    }
+    page.relatedSources = page.sourceRelations
+      .filter((relation) => ["same_matter", "updates", "interprets", "amends", "appeal_of"].includes(relation.type))
+      .map((relation) => relation.source);
+    page.supersedingSource = page.sourceRelations.find((relation) => relation.type === "supersedes")?.source ?? null;
+    page.casePages = (page.data.case_refs ?? []).map((caseId) => {
+      const candidate = pages.find((other) => other.category === "cases" && other.data.case_id === caseId);
+      if (!candidate) throw new Error(`${page.relativePath}: 존재하지 않는 case_refs ${caseId}`);
+      return candidate;
+    });
     for (const link of page.wikiLinks) {
       if (!link.target) continue;
       if (!lookup.get(normalizeLookup(link.target))) {
@@ -472,7 +511,7 @@ export async function loadWiki(rootDir) {
     page.citedBy.sort(byTitle);
   }
 
-  const { researchIssues, researchIssueMemberships } = resolveResearchIssues(pages, titles);
+  const { researchIssues, researchIssueMemberships } = resolveResearchIssues(pages, lookup, researchConfig);
 
   const statusCounts = pages.reduce((counts, page) => {
     counts[page.data.status] = (counts[page.data.status] ?? 0) + 1;
@@ -481,7 +520,16 @@ export async function loadWiki(rootDir) {
   const latestUpdated = pages.map((page) => page.data.updated).filter(Boolean).sort().at(-1) ?? "";
   const contentPages = pages.filter((page) => page.category !== "meta");
   const latestContentUpdated = contentPages.map((page) => page.data.updated).filter(Boolean).sort().at(-1) ?? "";
-  const knowledgeAsOf = contentPages.map((page) => page.data.as_of_date).filter(Boolean).sort().at(-1) ?? "";
+  const asOfDates = contentPages.map((page) => page.data.as_of_date).filter(Boolean).sort();
+  const latestChecked = pages.map((page) => page.data.last_checked || page.data.as_of_date).filter(Boolean).sort().at(-1) ?? "";
+  const asOfCoverage = contentPages.length ? Math.round((asOfDates.length / contentPages.length) * 100) : 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const overduePages = pages.filter((page) => page.data.review_due && page.data.review_due < today);
+  const freshnessByArea = Object.fromEntries([...new Set(contentPages.map((page) => page.data.legal_area).filter(Boolean))].sort().map((area) => {
+    const areaPages = contentPages.filter((page) => page.data.legal_area === area);
+    const areaDates = areaPages.map((page) => page.data.as_of_date).filter(Boolean).sort();
+    return [area, { total: areaPages.length, covered: areaDates.length, latest: areaDates.at(-1) ?? "", overdue: areaPages.filter((page) => page.data.review_due && page.data.review_due < today).length }];
+  }));
 
   return {
     pages,
@@ -496,11 +544,17 @@ export async function loadWiki(rootDir) {
       concepts: groups.concepts.length,
       analyses: groups.analyses.length,
       entities: groups.entities.length,
+      cases: groups.cases.length,
       meta: groups.meta.length,
       statuses: statusCounts,
       latestUpdated,
       latestContentUpdated,
-      knowledgeAsOf
+      knowledgeAsOf: asOfDates.length === contentPages.length ? asOfDates.at(-1) : "",
+      latestChecked,
+      asOfCoverage,
+      overdueCount: overduePages.length,
+      freshnessByArea,
+      researchSuggestions: researchConfig.search_suggestions
     }
   };
 }

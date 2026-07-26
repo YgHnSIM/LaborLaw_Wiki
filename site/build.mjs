@@ -13,7 +13,7 @@ import {
   statusLabel
 } from "./lib/wiki.mjs";
 import { createMarkdownRenderer, renderMarkdownPage } from "./lib/render-markdown.mjs";
-import { renderCatalogPage, renderCategoryPage, renderNotFound, renderPage } from "./templates.mjs";
+import { renderCatalogPage, renderCategoryPage, renderFreshnessPage, renderNotFound, renderPage } from "./templates.mjs";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRoot = path.resolve(moduleDir, "..");
@@ -65,11 +65,16 @@ function searchMetadata(page) {
     sourceTypeLabel(data.source_type),
     data.legal_area,
     data.authority,
-    data.legal_status,
+    data.normative_status,
+    data.record_status,
+    data.event_status,
+    data.case_id,
     data.version,
     data.law_number,
     ...data.tags,
     ...data.bill_numbers,
+    ...data.case_numbers,
+    ...data.parties,
     ...caseNumbers
   ].filter(Boolean).join(" ");
 }
@@ -84,7 +89,10 @@ function buildSearchIndex(wiki, basePath) {
     statusLabel: statusLabel(page.data.status),
     legalArea: page.data.legal_area || "",
     sourceType: page.data.source_type || "",
-    legalStatus: page.data.legal_status || "",
+    legalStatus: page.data.normative_status || page.data.record_status || "",
+    eventStatus: page.data.event_status || "",
+    caseId: page.data.case_id || "",
+    verificationStatus: page.data.verification_status || "",
     confidence: page.data.confidence || "",
     asOfDate: page.data.as_of_date || "",
     effectiveDate: page.data.effective_date || "",
@@ -121,8 +129,9 @@ function absoluteRoute(siteUrl, route) {
 function renderSitemap(wiki, siteUrl) {
   const categoryRoutes = CATEGORY_ORDER.map((category) => ({ route: `/${category}/`, updated: wiki.stats.latestContentUpdated }));
   const routes = [
+    { route: "/freshness/", updated: wiki.stats.latestChecked || wiki.stats.latestContentUpdated },
     ...categoryRoutes,
-    ...wiki.pages.map((page) => ({ route: page.route, updated: page.data.updated }))
+    ...wiki.pages.filter((page) => page.data.status === "active").map((page) => ({ route: page.route, updated: page.data.updated }))
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -179,6 +188,7 @@ export async function buildSite(options = {}) {
     const html = renderCategoryPage({ category, wiki, basePath, siteUrl, repositoryUrl });
     await writeFileEnsured(outputPathForRoute(outputDir, `/${category}/`), html);
   }));
+  await writeFileEnsured(path.join(outputDir, "freshness", "index.html"), renderFreshnessPage({ wiki, basePath, siteUrl, repositoryUrl }));
 
   const searchIndex = buildSearchIndex(wiki, basePath);
   const auxiliaryWrites = [

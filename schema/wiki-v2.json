@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "page_types": {
+    "source": {"directory": "sources", "index_section": "소스"},
+    "concept": {"directory": "concepts", "index_section": "개념"},
+    "entity": {"directory": "entities", "index_section": "개체"},
+    "analysis": {"directory": "analyses", "index_section": "분석"},
+    "case": {"directory": "cases", "index_section": "사건"},
+    "meta": {"directory": "meta", "index_section": "메타"}
+  },
+  "status": ["draft", "active", "review", "archived"],
+  "legal_areas": ["근로기준", "집단노동", "산재", "고용평등", "비정규직", "퇴직급여", "중대재해", "입법사"],
+  "authorities": ["법령", "대법원", "헌법재판소", "고용노동부", "중앙노동위원회", "국회", "학설", "기타"],
+  "source_types": [
+    "official_law", "official_decision", "official_guidance", "official_record",
+    "legal_excerpt", "academic_paper", "research_report", "news",
+    "practitioner_commentary", "llm_report", "stakeholder_statement"
+  ],
+  "record_status": ["available", "superseded", "withdrawn", "retracted"],
+  "normative_status": ["current", "amended", "repealed", "overruled", "uncertain"],
+  "confidence": ["high", "medium", "low"],
+  "event_status": ["scheduled", "pending", "decided", "appealed", "final", "superseded", "closed", "uncertain"],
+  "open_event_status": ["scheduled", "pending", "appealed", "uncertain"],
+  "source_relation_types": ["updates", "supersedes", "same_matter", "appeal_of", "interprets", "amends"],
+  "citation_pattern": "\\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})(?:#(p|para|art)=([A-Za-z0-9._-]+))?\\]",
+  "high_risk_pattern": "(?:\\b\\d{4}[가-힣]{0,3}\\d+|\\b\\d+(?:\\.\\d+)?%|인용|기각|확정|선고|판정|결정|취하|공고|시행일|사건번호)",
+  "required_summary_length": {"min": 20, "max": 200},
+  "raw_removal_manifest": "raw-removal-approvals.json"
+}

@@ -1,10 +1,11 @@
 ---
 title: JDC 면세점 판매사원 교섭단위 분리 인용
-aliases: [JDC 판매사원 교섭단위 분리, JDC 면세점 원청교섭 후속, 제주지노위 JDC 2026년 5월 18일 결정]
-tags: [type/source, domain/labor-law, area/collective-labor, status/active]
+aliases: ["JDC 판매사원 교섭단위 분리", "JDC 면세점 원청교섭 후속", "제주지노위 JDC 2026년 5월 18일 결정"]
+tags: ["type/source", "domain/labor-law", "area/collective-labor", "status/active"]
 created: 2026-07-10
 updated: 2026-07-10
 status: active
+summary: 제주지방노동위원회가 제주국제자유도시개발센터 지정면세점 입점업체 판매사원 직군의 교섭단위 분리 신청을 인용한 뒤 진행된 교섭창구 단일화 절차를 다룬 보도다.
 source_id: SRC-AD9485117E
 source_type: news
 publisher: 매일노동뉴스
@@ -12,12 +13,14 @@ raw_sources: []
 raw_sha256: []
 source_urls: ["https://v.daum.net/v/tof4hsaeOV", "https://v.daum.net/v/20260623063226108"]
 retrieved: 2026-07-10
+source_relations: [{"type": "same_matter", "target": "SRC-79610D6485"}, {"type": "same_matter", "target": "SRC-BEDE204B61"}]
+record_status: available
 legal_area: 집단노동
 authority: 기타
 publication_date: 2026-05-20
-reported_decision_dates: [2026-05-18]
-legal_status: current
+reported_decision_dates: ["2026-05-18"]
 confidence: medium
+case_refs: ["CASE-JDC-2026-04-09"]
 ---
 
 # JDC 면세점 판매사원 교섭단위 분리 인용

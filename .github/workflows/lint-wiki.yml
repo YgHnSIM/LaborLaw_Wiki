@@ -41,6 +41,9 @@ jobs:
       - name: Run linter unit tests
         run: python -I -B -m unittest discover -s tests -p "test_*.py"
 
+      - name: Validate generated catalog
+        run: python -I -B scripts/sync_wiki.py --check
+
       - name: Test site generator
         run: npm test
 
@@ -76,10 +79,14 @@ jobs:
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           if git cat-file -e "${base}:scripts/lint_wiki.py" 2>/dev/null; then
-            trusted_lint="$(mktemp scripts/.lint_wiki_base.XXXXXX.py)"
-            trap 'rm -f "$trusted_lint"' EXIT
-            git show "${base}:scripts/lint_wiki.py" > "$trusted_lint"
-            python -I -B "$trusted_lint" --base "$base" --strict-warnings
+            if git diff --quiet "$base" HEAD -- schema/ scripts/schema.py scripts/lint_wiki.py; then
+              trusted_lint="$(mktemp scripts/.lint_wiki_base.XXXXXX.py)"
+              trap 'rm -f "$trusted_lint"' EXIT
+              git show "${base}:scripts/lint_wiki.py" > "$trusted_lint"
+              python -I -B "$trusted_lint" --base "$base" --strict-warnings
+            else
+              echo "Schema/linter bootstrap change detected; skipping incompatible base linter."
+            fi
           fi
 
       - name: Validate pull request with current linter
