@@ -8,48 +8,38 @@ Usage: ``python -I -B scripts/sync_wiki.py`` or ``--check`` in CI.  Only
 from __future__ import annotations
 
 import argparse
-import importlib.util
-import json
-import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WIKI = ROOT / "wiki"
 INDEX = WIKI / "index.md"
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
+
+from scripts.frontmatter import parse_frontmatter_lines  # noqa: E402
+from scripts.schema import INDEX_SECTION_BY_TYPE, TYPE_BY_DIRECTORY  # noqa: E402
 
 
-def parse_value(raw: str) -> object:
-    raw = raw.strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        if raw.startswith("[") and raw.endswith("]"):
-            inner = raw[1:-1].strip()
-            return [item.strip().strip("\"'") for item in inner.split(",") if item.strip()]
-        return raw.strip("\"'")
-
-
-def parse_page(path: Path) -> dict[str, object]:
+def parse_page(path: Path, *, wiki_root: Path = WIKI) -> dict[str, object]:
     lines = path.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")
-    end = lines.index("---", 1)
-    result: dict[str, object] = {}
-    for line in lines[1:end]:
-        match = re.match(r"^([A-Za-z][A-Za-z0-9_]*):(?:[ \t]*(.*))?$", line)
-        if match and (match.group(2) or "").strip():
-            result[match.group(1)] = parse_value(match.group(2) or "")
-    result["relative"] = path.relative_to(WIKI).as_posix()
+    if not lines or lines[0] != "---":
+        raise ValueError(f"{path}: 첫 줄에 YAML 프론트매터 구분자 `---`가 필요합니다.")
+    try:
+        end = lines.index("---", 1)
+    except ValueError as exc:
+        raise ValueError(f"{path}: 프론트매터 닫는 구분자 `---`가 없습니다.") from exc
+    result, _, issues = parse_frontmatter_lines(lines[1:end], start_line=2)
+    if issues:
+        details = "; ".join(f"{issue.code}({issue.line}행): {issue.message}" for issue in issues)
+        raise ValueError(f"{path}: 프론트매터를 해석할 수 없습니다: {details}")
+    result["relative"] = path.relative_to(wiki_root).as_posix()
     return result
 
 
 def type_for(relative: str) -> str:
     if "/" not in relative:
         return "meta"
-    return {
-        "sources": "source", "concepts": "concept", "entities": "entity",
-        "analyses": "analysis", "cases": "case", "meta": "meta",
-    }.get(relative.split("/", 1)[0], "meta")
+    return TYPE_BY_DIRECTORY.get(relative.split("/", 1)[0], "meta")
 
 
 def title_of(data: dict[str, object]) -> str:
@@ -77,10 +67,7 @@ def source_label(data: dict[str, object], page_type: str) -> str:
 
 
 def section_name(page_type: str) -> str:
-    return {
-        "source": "소스", "concept": "개념", "entity": "개체", "analysis": "분석",
-        "case": "사건", "meta": "메타",
-    }.get(page_type, "메타")
+    return INDEX_SECTION_BY_TYPE.get(page_type, "메타")
 
 
 def route_target(data: dict[str, object]) -> str:

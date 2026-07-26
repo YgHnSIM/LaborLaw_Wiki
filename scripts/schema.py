@@ -28,4 +28,9 @@ CONFIDENCE_VALUES = set(SCHEMA["confidence"])
 EVENT_STATUSES = set(SCHEMA["event_status"])
 OPEN_EVENT_STATUSES = set(SCHEMA["open_event_status"])
 SOURCE_RELATION_TYPES = set(SCHEMA["source_relation_types"])
-
+CITATION_PATTERN = str(SCHEMA["citation_pattern"])
+HIGH_RISK_PATTERN = str(SCHEMA["high_risk_pattern"])
+SUMMARY_LENGTH = SCHEMA["required_summary_length"]
+SUMMARY_MIN_LENGTH = int(SUMMARY_LENGTH["min"])
+SUMMARY_MAX_LENGTH = int(SUMMARY_LENGTH["max"])
+RAW_REMOVAL_MANIFEST = str(SCHEMA["raw_removal_manifest"])

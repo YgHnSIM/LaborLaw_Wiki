@@ -9,7 +9,6 @@ script also enforces repository history rules that require Git context.
 from __future__ import annotations
 
 import argparse
-import ast
 import hashlib
 import json
 import os
@@ -22,28 +21,35 @@ import sys
 import unicodedata
 from urllib.parse import parse_qs, urlparse
 
-import importlib.util
-
-_SCHEMA_SPEC = importlib.util.spec_from_file_location("labor_law_wiki_schema", Path(__file__).with_name("schema.py"))
-if _SCHEMA_SPEC is None or _SCHEMA_SPEC.loader is None:
-    raise RuntimeError("schema.py를 불러올 수 없습니다")
-_SCHEMA_MODULE = importlib.util.module_from_spec(_SCHEMA_SPEC)
-_SCHEMA_SPEC.loader.exec_module(_SCHEMA_MODULE)
-AUTHORITIES = _SCHEMA_MODULE.AUTHORITIES
-CONFIDENCE_VALUES = _SCHEMA_MODULE.CONFIDENCE_VALUES
-EVENT_STATUSES = _SCHEMA_MODULE.EVENT_STATUSES
-LEGAL_AREAS = _SCHEMA_MODULE.LEGAL_AREAS
-NORMATIVE_STATUSES = _SCHEMA_MODULE.NORMATIVE_STATUSES
-OPEN_EVENT_STATUSES = _SCHEMA_MODULE.OPEN_EVENT_STATUSES
-RECORD_STATUSES = _SCHEMA_MODULE.RECORD_STATUSES
-SOURCE_RELATION_TYPES = _SCHEMA_MODULE.SOURCE_RELATION_TYPES
-SOURCE_TYPES = _SCHEMA_MODULE.SOURCE_TYPES
-STATUS_VALUES = _SCHEMA_MODULE.STATUS_VALUES
-TYPE_BY_DIRECTORY = _SCHEMA_MODULE.TYPE_BY_DIRECTORY
-INDEX_SECTION_BY_TYPE = _SCHEMA_MODULE.INDEX_SECTION_BY_TYPE
-
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.frontmatter import (  # noqa: E402
+    frontmatter_scalar,
+    parse_frontmatter_lines,
+    parse_yaml_value,
+    strip_yaml_comment,
+)
+from scripts.schema import (  # noqa: E402
+    AUTHORITIES,
+    CITATION_PATTERN,
+    CONFIDENCE_VALUES,
+    EVENT_STATUSES,
+    HIGH_RISK_PATTERN,
+    INDEX_SECTION_BY_TYPE,
+    LEGAL_AREAS,
+    NORMATIVE_STATUSES,
+    OPEN_EVENT_STATUSES,
+    RAW_REMOVAL_MANIFEST,
+    RECORD_STATUSES,
+    SOURCE_RELATION_TYPES,
+    SOURCE_TYPES,
+    STATUS_VALUES,
+    SUMMARY_MAX_LENGTH,
+    SUMMARY_MIN_LENGTH,
+    TYPE_BY_DIRECTORY,
+)
+
 WIKI = ROOT / "wiki"
 RAW = ROOT / "raw"
 
@@ -97,11 +103,10 @@ KNOWN_FIELDS = {
     "legal_status", "related_source_refs", "superseded_by", "sources",
 }
 
-KEY_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_]*):(?:[ \t]*(.*))?$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TAG_RE = re.compile(r"^(type|domain|area|status)/[a-z0-9][a-z0-9-]*$")
 SOURCE_ID_RE = re.compile(r"^SRC-[A-Z0-9][A-Z0-9._-]{2,}$")
-SOURCE_CITATION_RE = re.compile(r"\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})(?:#(p|para|art)=([A-Za-z0-9._-]+))?\]")
+SOURCE_CITATION_RE = re.compile(CITATION_PATTERN)
 SOURCE_CITATION_TOKEN_RE = re.compile(r"\[@([^\]\s]+)\]")
 SOURCE_TYPE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -109,6 +114,7 @@ WARNING_RE = re.compile(r"^>\s*\[!WARNING\]", re.MULTILINE)
 WIKILINK_RE = re.compile(r"(?<!!)\[\[([^\]\n]+)\]\]|!\[\[([^\]\n]+)\]\]")
 LOG_HEADER_RE = re.compile(r"^## \[(\d{4}-\d{2}-\d{2})\] ([a-z]+) \| (.+?)\s*$", re.MULTILINE)
 ANY_LOG_HEADER_RE = re.compile(r"^## \[([^\]]+)\] ([^|]+) \| (.+?)\s*$", re.MULTILINE)
+HIGH_RISK_RE = re.compile(HIGH_RISK_PATTERN)
 
 
 @dataclass
@@ -253,77 +259,9 @@ class Linter:
     def parse_frontmatter(
         self, path: Path, lines: list[str], *, start_line: int
     ) -> tuple[dict[str, object], dict[str, int]]:
-        result: dict[str, object] = {}
-        key_lines: dict[str, int] = {}
-        index = 0
-        while index < len(lines):
-            raw_line = lines[index]
-            line_no = start_line + index
-            if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-                index += 1
-                continue
-            leading = raw_line[: len(raw_line) - len(raw_line.lstrip(" \t"))]
-            if "\t" in leading:
-                self.error("FM_TAB_INDENT", path, "YAML 들여쓰기에 탭을 사용할 수 없습니다.", line_no)
-                index += 1
-                continue
-            if raw_line.startswith((" ", "\t")):
-                self.error("FM_INDENT", path, "최상위 프론트매터 키에 들여쓰기를 사용할 수 없습니다.", line_no)
-                index += 1
-                continue
-            match = KEY_RE.match(raw_line)
-            if not match:
-                self.error("FM_SYNTAX", path, "지원하지 않는 프론트매터 문법입니다.", line_no)
-                index += 1
-                continue
-            key, raw_value = match.group(1), match.group(2) or ""
-            if key in result:
-                self.error("FM_DUPLICATE_KEY", path, f"중복 키 `{key}`가 있습니다.", line_no)
-            key_lines[key] = line_no
-            if raw_value.strip():
-                try:
-                    value = parse_yaml_value(raw_value.strip())
-                except ValueError as exc:
-                    self.error("FM_VALUE", path, f"`{key}` 값을 해석할 수 없습니다: {exc}", line_no)
-                    value = raw_value.strip()
-                if key not in {"case_decisions", "source_relations"} and contains_structured_value(value):
-                    self.error("FM_MAPPING_SCOPE", path, "JSON 스타일 인라인 매핑은 case_decisions·source_relations에서만 사용할 수 있습니다.", line_no)
-                result[key] = value
-                index += 1
-                continue
-
-            values: list[object] = []
-            cursor = index + 1
-            saw_item = False
-            while cursor < len(lines):
-                child = lines[cursor]
-                child_no = start_line + cursor
-                if not child.strip() or child.lstrip().startswith("#"):
-                    cursor += 1
-                    continue
-                if not child.startswith((" ", "\t")):
-                    break
-                child_leading = child[: len(child) - len(child.lstrip(" \t"))]
-                if "\t" in child_leading:
-                    self.error("FM_TAB_INDENT", path, "YAML 목록 들여쓰기에 탭을 사용할 수 없습니다.", child_no)
-                    cursor += 1
-                    continue
-                item_match = re.match(r"^[ \t]+-[ \t]*(.*)$", child)
-                if not item_match:
-                    self.error("FM_NESTING", path, f"`{key}`에는 단순 목록만 사용할 수 있습니다.", child_no)
-                    cursor += 1
-                    continue
-                try:
-                    values.append(parse_yaml_value(item_match.group(1).strip()))
-                    saw_item = True
-                except ValueError as exc:
-                    self.error("FM_VALUE", path, f"`{key}` 목록 값을 해석할 수 없습니다: {exc}", child_no)
-                cursor += 1
-            value = values if saw_item else None
-            if key not in {"case_decisions", "source_relations"} and contains_structured_value(value):
-                self.error("FM_MAPPING_SCOPE", path, "JSON 스타일 인라인 매핑은 case_decisions·source_relations에서만 사용할 수 있습니다.", line_no)
-            result[key] = value
-            index = cursor
+        result, key_lines, issues = parse_frontmatter_lines(lines, start_line=start_line)
+        for issue in issues:
+            self.error(issue.code, path, issue.message, issue.line)
         return result, key_lines
 
     def build_identity_index(self) -> None:
@@ -369,8 +307,13 @@ class Linter:
             tags = require_string_list(self, page, "tags")
             status = require_nonempty_string(self, page, "status")
             summary = require_nonempty_string(self, page, "summary")
-            if summary and not (20 <= len(summary) <= 200):
-                self.error("FM_SUMMARY_LENGTH", page.path, "summary는 20~200자의 한 줄 요약이어야 합니다.", page.line_for("summary"))
+            if summary and not (SUMMARY_MIN_LENGTH <= len(summary) <= SUMMARY_MAX_LENGTH):
+                self.error(
+                    "FM_SUMMARY_LENGTH",
+                    page.path,
+                    f"summary는 {SUMMARY_MIN_LENGTH}~{SUMMARY_MAX_LENGTH}자의 한 줄 요약이어야 합니다.",
+                    page.line_for("summary"),
+                )
             if summary and "\n" in summary:
                 self.error("FM_SUMMARY_LINE", page.path, "summary는 한 줄이어야 합니다.", page.line_for("summary"))
 
@@ -784,7 +727,7 @@ class Linter:
                 self.error("SOURCE_CITATION_MISSING", page.path, f"본문 근거 표식이 존재하지 않는 source_id를 가리킵니다: `{ref}`", line)
             elif ref not in refs:
                 self.error("SOURCE_CITATION_UNDECLARED", page.path, f"본문 근거 표식 `{ref}`를 frontmatter source_refs에도 등록하세요.", line)
-        high_risk = bool(re.search(r"(?:\b\d{4}[가-힣]{0,3}\d+|\b\d+(?:\.\d+)?%|인용|기각|확정|선고|판정|결정|취하|공고|시행일|사건번호)", visible))
+        high_risk = bool(HIGH_RISK_RE.search(visible))
         if page.expected_type in {"concept", "entity", "analysis", "case"} and high_risk and not markers:
             self.error("SOURCE_CITATION_REQUIRED", page.path, "날짜·사건번호·수치·결론을 포함한 고위험 주장에는 문단 근거 표식이 필요합니다.")
         if page.expected_type in {"concept", "entity", "analysis", "case"} and len(refs) >= 5 and not markers:
@@ -872,7 +815,7 @@ class Linter:
                 self.error("RAW_UNREFERENCED", path, "어떤 출처 페이지의 raw_sources 또는 attachments에도 등록되지 않았습니다.")
 
     def validate_raw_removal_manifest(self) -> None:
-        manifest_path = ROOT / "raw-removal-approvals.json"
+        manifest_path = ROOT / RAW_REMOVAL_MANIFEST
         if not manifest_path.is_file():
             self.error("RAW_APPROVAL_MANIFEST", manifest_path, "raw 삭제 승인 manifest가 없습니다.")
             return
@@ -908,12 +851,12 @@ class Linter:
 
     def validate_raw_removal_manifest_history(self, base: str) -> None:
         """Keep previously recorded raw-removal approvals append-only."""
-        ok, base_text, _ = run_git("show", f"{base}:raw-removal-approvals.json")
+        ok, base_text, _ = run_git("show", f"{base}:{RAW_REMOVAL_MANIFEST}")
         if not ok:
             # The manifest was introduced by v2; a missing file at the base is
             # expected for the migration commit.
             return
-        current_path = ROOT / "raw-removal-approvals.json"
+        current_path = ROOT / RAW_REMOVAL_MANIFEST
         if not current_path.is_file():
             self.error("RAW_APPROVAL_HISTORY", current_path, "기준에 있던 raw 삭제 승인 manifest를 삭제할 수 없습니다.")
             return
@@ -1109,7 +1052,7 @@ class Linter:
             self.error("RAW_IMMUTABLE", joined, f"기준 `{base}`에 있던 raw 파일은 수정·삭제·이동할 수 없습니다(상태 {status}).")
 
     def approved_raw_removal(self, base: str, raw_path: str) -> bool:
-        manifest_path = ROOT / "raw-removal-approvals.json"
+        manifest_path = ROOT / RAW_REMOVAL_MANIFEST
         try:
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -1264,155 +1207,6 @@ class Linter:
                 continue
             uncovered.append(path)
         return uncovered
-
-
-def parse_yaml_value(raw: str) -> object:
-    raw = strip_yaml_comment(raw.strip())
-    if raw == "":
-        return ""
-    if raw.startswith(("[", "{")):
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            if raw.startswith("{"):
-                raise ValueError("인라인 매핑은 JSON 스타일의 큰따옴표 키·문자열만 지원합니다")
-    if raw.startswith("["):
-        if not raw.endswith("]"):
-            raise ValueError("닫는 `]`가 없습니다")
-        inner = raw[1:-1].strip()
-        if not inner:
-            return []
-        return [parse_yaml_value(item.strip()) for item in split_flow_items(inner)]
-    if raw.startswith("{"):
-        raise ValueError("인라인 매핑은 지원하지 않습니다")
-    if raw[0:1] == '"':
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            try:
-                return ast.literal_eval(raw)
-            except (ValueError, SyntaxError) as exc:
-                raise ValueError("잘못된 큰따옴표 문자열") from exc
-    if raw[0:1] == "'":
-        if len(raw) < 2 or not raw.endswith("'"):
-            raise ValueError("닫히지 않은 작은따옴표 문자열")
-        inner = raw[1:-1]
-        result: list[str] = []
-        index = 0
-        while index < len(inner):
-            char = inner[index]
-            if char != "'":
-                result.append(char)
-                index += 1
-                continue
-            if index + 1 < len(inner) and inner[index + 1] == "'":
-                result.append("'")
-                index += 2
-                continue
-            raise ValueError("작은따옴표 문자열 내부의 따옴표는 `''`로 이스케이프해야 합니다")
-        return "".join(result)
-    lower = raw.casefold()
-    if lower in {"null", "~"}:
-        return None
-    if lower in {"true", "false"}:
-        return lower == "true"
-    if re.fullmatch(r"-?\d+", raw):
-        return int(raw)
-    if re.search(r":\s", raw):
-        raise ValueError("콜론 뒤 공백이 있는 문자열은 큰따옴표로 감싸세요")
-    return raw
-
-
-def frontmatter_scalar(text: str, key: str) -> object | None:
-    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-    lines = normalized.splitlines()
-    if not lines or lines[0].lstrip("\ufeff") != "---":
-        return None
-    try:
-        end = lines.index("---", 1)
-    except ValueError:
-        return None
-    pattern = re.compile(rf"^{re.escape(key)}:\s*(.*?)\s*$")
-    for line in lines[1:end]:
-        match = pattern.match(line)
-        if match:
-            try:
-                return parse_yaml_value(match.group(1))
-            except ValueError:
-                return None
-    return None
-
-
-def split_flow_items(raw: str) -> list[str]:
-    items: list[str] = []
-    current: list[str] = []
-    quote: str | None = None
-    escaped = False
-    delimiters: list[str] = []
-    matching = {"]": "[", "}": "{"}
-    for char in raw:
-        if quote:
-            current.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\" and quote == '"':
-                escaped = True
-            elif char == quote:
-                quote = None
-            continue
-        if char in {'"', "'"}:
-            quote = char
-            current.append(char)
-        elif char in "[{":
-            delimiters.append(char)
-            current.append(char)
-        elif char in "]}":
-            if not delimiters or delimiters[-1] != matching[char]:
-                raise ValueError("흐름식 목록의 괄호 종류나 순서가 맞지 않습니다")
-            delimiters.pop()
-            current.append(char)
-        elif char == "," and not delimiters:
-            items.append("".join(current))
-            current = []
-        else:
-            current.append(char)
-    if quote:
-        raise ValueError("닫히지 않은 따옴표가 있습니다")
-    if delimiters:
-        raise ValueError("괄호 짝이 맞지 않습니다")
-    final = "".join(current)
-    if final.strip() or not raw.rstrip().endswith(","):
-        items.append(final)
-    return items
-
-
-def strip_yaml_comment(raw: str) -> str:
-    if raw and raw[0] not in {'"', "'", "[", "{"}:
-        for index, char in enumerate(raw):
-            if char == "#" and index > 0 and raw[index - 1].isspace():
-                return raw[:index].rstrip()
-        return raw
-    quote: str | None = None
-    escaped = False
-    for index, char in enumerate(raw):
-        if quote:
-            if escaped:
-                escaped = False
-            elif char == "\\" and quote == '"':
-                escaped = True
-            elif char == quote:
-                quote = None
-        elif char in {'"', "'"}:
-            quote = char
-        elif char == "#" and index > 0 and raw[index - 1].isspace():
-            return raw[:index].rstrip()
-    return raw
-
-
-def contains_structured_value(value: object) -> bool:
-    if isinstance(value, dict):
-        return True
-    return isinstance(value, list) and any(isinstance(item, (dict, list)) for item in value)
 
 
 def expected_page_type(rel: str) -> str | None:
