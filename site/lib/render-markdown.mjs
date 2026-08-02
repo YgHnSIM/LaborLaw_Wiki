@@ -2,7 +2,7 @@ import MarkdownIt from "markdown-it";
 import markdownItAnchor from "markdown-it-anchor";
 import { slug as githubSlug } from "github-slugger";
 import { normalizeLookup, siteHref } from "./wiki.mjs";
-import { extractSourceCitations, parseSourceCitation, parseWikiLink } from "./wiki-syntax.mjs";
+import { collapseAdjacentSourceCitations, extractSourceCitations, parseSourceCitation, parseWikiLink } from "./wiki-syntax.mjs";
 
 export { extractSourceCitations };
 
@@ -153,7 +153,7 @@ export function renderMarkdownPage(md, page) {
     index: index + 1,
     title: source.data.title
   }]));
-  const html = md.render(page.body, { page, sourceCitationIndex });
+  const html = md.render(collapseAdjacentSourceCitations(page.body), { page, sourceCitationIndex });
   const leadMatch = html.match(/^<p>([\s\S]*?)<\/p>\n?/);
   const contentHtml = leadMatch ? html.slice(leadMatch[0].length) : html;
   const toc = [];

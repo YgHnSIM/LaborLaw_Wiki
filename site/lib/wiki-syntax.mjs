@@ -77,3 +77,8 @@ export function parseSourceCitation(value) {
 export function stripSourceCitations(markdown) {
   return String(markdown ?? "").replace(SOURCE_CITATION_PATTERN, " ");
 }
+
+export function collapseAdjacentSourceCitations(markdown) {
+  const adjacentPattern = /(\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})(?:#(?:p|para|art)=[A-Za-z0-9._-]+)?\])(?:[ \t]+\[@\2(?:#(?:p|para|art)=[A-Za-z0-9._-]+)?\])+/g;
+  return String(markdown ?? "").replace(adjacentPattern, "$1");
+}

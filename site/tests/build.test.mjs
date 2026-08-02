@@ -450,6 +450,8 @@ test("문장 단위 근거 표식을 안정적인 출처 항목으로 연결한�
   const locatorHtml = await fs.readFile(outputPathForRoute(outputDir, locatorPage.route), "utf8");
   assert.match(locatorHtml, /href="#evidence-SRC-ANNUAL-PAID-2026-PARK"/);
   assert.doesNotMatch(locatorHtml, /\[@SRC-ANNUAL-PAID-2026-PARK#p=44\]/);
+  assert.equal((locatorHtml.match(/href="#evidence-SRC-D3A0A79006"/g) ?? []).length, 2);
+  assert.equal((locatorHtml.match(/href="#evidence-SRC-ANNUAL-RIGHTS-2021-OH"/g) ?? []).length, 1);
 
   const invalidPage = { ...page, relativePath: "invalid.md", body: "문장 [@SRC-NOT-DECLARED]", data: { ...page.data, source_refs: [] } };
   const renderer = createMarkdownRenderer({ lookup: result.wiki.lookup, basePath });

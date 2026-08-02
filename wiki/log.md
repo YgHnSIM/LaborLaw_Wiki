@@ -1371,6 +1371,13 @@ source_refs: []
 - `연차휴가수당` 페이지의 쪽수 표식을 포함한 회귀 테스트를 추가함.
 - 변경 파일: `site/lib/wiki-syntax.mjs`, `site/tests/wiki-syntax.test.mjs`, `site/tests/build.test.mjs`, `wiki/log.md`.
 
+## [2026-08-02] maintenance | 인접 근거 링크 중복 정리
+
+- 같은 출처에 서로 다른 쪽수·조문 표식이 연달아 있는 문장이 웹에서 동일 근거 번호 링크를 중복 표시하던 문제를 수정함.
+- 원문 표식은 보존하고, 웹 출력에서 같은 출처의 인접 표식만 하나의 근거 링크로 합치도록 공통 렌더링 처리를 추가함. 서로 다른 문장에 있는 반복 근거는 유지함.
+- 중복 사례가 있는 4개 문서와 연차휴가수당 페이지의 렌더링 결과를 회귀 테스트로 검증함.
+- 변경 파일: `site/lib/wiki-syntax.mjs`, `site/lib/render-markdown.mjs`, `site/tests/wiki-syntax.test.mjs`, `site/tests/build.test.mjs`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]

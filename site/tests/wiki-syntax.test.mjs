@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  collapseAdjacentSourceCitations,
   extractSourceCitations,
   extractWikiLinks,
   parseSourceCitation,
@@ -50,4 +51,12 @@ test("근거 표식 추출과 제거가 동일한 문법을 사용한다", () =>
   });
   assert.equal(parseSourceCitation("앞 문장 [@SRC-LAW-001]"), null);
   assert.equal(stripSourceCitations(markdown), "주장   반복   조문   잘못된 [@src-law-001]");
+});
+
+test("같은 출처의 인접한 근거 표식을 하나로 합친다", () => {
+  const markdown = "문장 [@SRC-LAW-001#art=60] [@SRC-LAW-001#art=61] 다음 [@SRC-OH-001#p=305] [@SRC-OH-001#p=324]\n\n새 문단 [@SRC-LAW-001#art=62]";
+  assert.equal(
+    collapseAdjacentSourceCitations(markdown),
+    "문장 [@SRC-LAW-001#art=60] 다음 [@SRC-OH-001#p=305]\n\n새 문단 [@SRC-LAW-001#art=62]"
+  );
 });
