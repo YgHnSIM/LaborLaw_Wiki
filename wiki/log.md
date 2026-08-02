@@ -1394,6 +1394,14 @@ source_refs: []
 - 생성물·벤더·임시 경로에는 중복 지침을 만들지 않았으며, 기존 `raw/` 파일은 변경하지 않음.
 - 변경 파일: `AGENTS.md`, 하위 `AGENTS.md` 8개, `scripts/schema.py`, `scripts/sync_wiki.py`, `scripts/lint_wiki.py`, `scripts/migrate_schema_v2.py`, `site/lib/wiki.mjs`, `site/tests/build.test.mjs`, `tests/test_sync_wiki.py`, `wiki/meta/출처 추적 및 최신성 관리.md`, `wiki/log.md`.
 
+## [2026-08-02] analysis | 연차휴가 시기지정권능 구조 반영
+
+- `wiki/concepts/연차유급휴가.md`에 연차유급휴가권·근로자의 시기지정권능·사용자의 제한적 시기변경권능을 구분하는 3층 구조와 실무 판단 순서를 추가함.
+- 중심 허브 `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`의 권리구조를 7단계로 재배열하고, 1997년·2000년·2025년 대법원 판례를 시기지정과 시기변경의 이론적 축으로 보강함.
+- 공식 URL 전용 출처 3건과 사건 기록 3건을 추가했으며, 판결 당사자별 entity 문서는 만들지 않고 사건의 `party_entity_refs`는 비워 둠.
+- `wiki/index.md`와 `wiki/log.md`를 새 출처·사건 기록 기준으로 갱신함. `raw/` 원본은 변경하지 않음.
+- 변경 파일: `wiki/sources/`의 3개 공식 판례 출처, `wiki/cases/`의 3개 사건 기록, `wiki/concepts/연차유급휴가.md`, `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`, `wiki/index.md`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
