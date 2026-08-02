@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: ["로그", "변경 이력"]
 tags: ["type/meta", "domain/labor-law", "status/active"]
 created: 2026-06-01
-updated: 2026-07-26
+updated: 2026-08-02
 status: active
 summary: "AGENTS.md를 대한민국 노동법 위키 운영에 맞게 개정함. - 입법 과정 및 역사적 맥락 분석을 wiki/analyses/의 주요 문서 유형으로 추가함. - 공식 소스 우선순위, 노동법 전용 메타데이터, 태그 체계, 핵심 개념 축을 추가함. - 루트 README.md를 생성해 프로젝트 개요와 운영 원칙을 정리함. - 초기 wiki/index.md,…"
 source_refs: []
@@ -1341,6 +1341,16 @@ source_refs: []
 - 승인 장부: `raw-removal-approvals.json`을 빈 append-only v1 manifest로 추가함(이번 작업에서 raw 삭제 없음).
 - 추가 파일: `wiki/data/research-issues.json`, `wiki/overview.md`.
 - `raw/` 원본은 수정·이동·삭제하지 않았으며, 기존 source_id와 로그 항목은 보존함.
+
+## [2026-08-02] ingest | 연차유급휴가 연구자료 6건 반영
+
+- raw/의 연차유급휴가 관련 학술 PDF 6건을 원본 SHA-256과 함께 wiki/sources/에 등록함.
+- [[연차유급휴가]]를 법적 성격, 권리구조, 실질적 사용을 둘러싼 학설·정책 논의로 보강함.
+- wiki/concepts/연차휴가수당.md를 새로 만들고, 휴가기간 임금과 미사용수당을 구별해 정리함.
+- wiki/concepts/기간제 근로.md에 1년 기간제근로자의 연차휴가·수당 해석상 쟁점을 추가함.
+- wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md에서 여섯 논문의 견해와 제도개선안을 비교함.
+- wiki/overview.md와 wiki/index.md를 최신 소스·페이지 기준으로 갱신함.
+- 변경 파일: `wiki/sources/`, `wiki/concepts/연차유급휴가.md`, `wiki/concepts/연차휴가수당.md`, `wiki/concepts/기간제 근로.md`, `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`, `wiki/index.md`, `wiki/overview.md`, `wiki/log.md`.
 
 ## 관련 항목
 
