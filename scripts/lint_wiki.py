@@ -751,10 +751,13 @@ class Linter:
         case_id = require_nonempty_string(self, page, "case_id")
         if case_id and not re.fullmatch(r"CASE-[A-Z0-9][A-Z0-9._-]{2,}", case_id):
             self.error("CASE_ID_FORMAT", page.path, "case_id는 CASE-로 시작하는 안정적인 영문 대문자·숫자 식별자여야 합니다.", page.line_for("case_id"))
-        for key in ("case_numbers", "parties", "party_entity_refs", "issue_refs"):
+        for key in ("case_numbers", "parties", "issue_refs"):
             values = optional_string_list(self, page, key)
             if key in fm and not values:
                 self.error("CASE_LIST_EMPTY", page.path, f"{key}는 하나 이상의 문자열 목록이어야 합니다.", page.line_for(key))
+        # 사건 당사자의 명칭은 사건 페이지에 보존하되, 노동법상 독립적인
+        # 개체로 관리할 필요가 없는 당사자는 빈 party_entity_refs를 허용한다.
+        optional_string_list(self, page, "party_entity_refs")
         entity_refs = optional_string_list(self, page, "party_entity_refs")
         for ref in entity_refs:
             entity = next((candidate for candidate in self.pages if candidate.expected_type == "entity" and candidate.frontmatter.get("entity_id") == ref), None)

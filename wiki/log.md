@@ -1378,6 +1378,15 @@ source_refs: []
 - 중복 사례가 있는 4개 문서와 연차휴가수당 페이지의 렌더링 결과를 회귀 테스트로 검증함.
 - 변경 파일: `site/lib/wiki-syntax.mjs`, `site/lib/render-markdown.mjs`, `site/tests/wiki-syntax.test.mjs`, `site/tests/build.test.mjs`, `wiki/log.md`.
 
+## [2026-08-02] analysis | 연차유급휴가 중심 허브 문서 재구성
+
+- 여섯 학술논문을 국내 법제 연혁, 권리 발생·사용·임금·미사용수당·소멸의 단계, 핵심 판례, 국제기준과 연결해 `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`를 중심 허브로 재구성함.
+- 국가법령정보센터의 법제 연혁·현행 근로기준법·2027년 시행 예정 개정, ILO 제132호 협약, EU 근로시간편성지침, 헌법재판소·대법원 핵심 판결 6개 분석 축을 `wiki/sources/`에 추가함.
+- 2005헌마586, 2008다41666, 2011다4629, 2013헌마619, 2016다48297, 2022다231403·231410을 `wiki/cases/`에 사건 기록으로 추가하고, 사건 당사자명은 보존하되 노동법상 독립적 의미가 없는 당사자별 entity 페이지는 만들지 않도록 정리함.
+- `wiki/concepts/연차유급휴가.md`와 `wiki/concepts/연차휴가수당.md`에 중심 허브·공식 판례·시행 예정 개정을 연결함.
+- `scripts/lint_wiki.py`에서 사건 당사자의 `party_entity_refs`를 선택적 연결로 검증하도록 조정함. `raw/` 원본은 변경하지 않음.
+- 변경 파일: `wiki/sources/`, `wiki/cases/`, `wiki/concepts/연차유급휴가.md`, `wiki/concepts/연차휴가수당.md`, `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`, `scripts/lint_wiki.py`, `wiki/index.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
