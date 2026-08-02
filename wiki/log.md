@@ -1352,6 +1352,25 @@ source_refs: []
 - wiki/overview.md와 wiki/index.md를 최신 소스·페이지 기준으로 갱신함.
 - 변경 파일: `wiki/sources/`, `wiki/concepts/연차유급휴가.md`, `wiki/concepts/연차휴가수당.md`, `wiki/concepts/기간제 근로.md`, `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`, `wiki/index.md`, `wiki/overview.md`, `wiki/log.md`.
 
+## [2026-08-02] lint | 연차유급휴가 개념 문서 점검
+
+- `wiki/concepts/연차유급휴가.md`의 프론트매터, 출처 참조, 인용 표식, 관련 항목과 현행 근로기준법 제60조부터 제62조의 기본 구조를 점검함.
+- 발생 요건·시기지정권 서술은 현행 조문과 부합함. 적용 범위(상시 5명 이상 사업장 및 주 15시간 미만 단시간근로자), 출근 간주, 휴가 소멸·사용촉진의 법정 기한, 유급휴가 대체는 후속 보완 대상으로 기록함.
+- 2027년 6월 10일 시행 예정인 근로기준법 제60조 개정(분할 청구와 불리한 처우 금지)을 최신성 검토 항목으로 추가함.
+- 변경 파일: `wiki/log.md`.
+
+## [2026-08-02] maintenance | 연차휴가 학술 출처 링크 정비
+
+- `SRC-ANNUAL-NATURE-2010-PARK-KIM`, `SRC-ANNUAL-COMPENSATION-2015-KIM`, `SRC-ANNUAL-RIGHTS-2021-OH`에 KCI 논문별 고정 URL을 추가함.
+- 연차휴가 관련 7개 출처의 외부 URL을 확인해 기존 4개와 새로 추가한 3개가 각 자료의 제목·저자·발행정보와 일치함을 점검함.
+- 변경 파일: `wiki/sources/연차 휴가의 법적 성격과 쟁점.md`, `wiki/sources/연차휴가제도의 보상적 성격에 관한 비판적 검토.md`, `wiki/sources/연차유급휴가권의 구조에 대한 고찰.md`, `wiki/index.md`, `wiki/log.md`.
+
+## [2026-08-02] maintenance | 본문 근거 표식 렌더링 보정
+
+- `[@SRC-ID#p=쪽수]`, `[@SRC-ID#para=문단]`, `[@SRC-ID#art=조문]` 표식이 웹에서 원문 그대로 노출되지 않고 근거 패널의 번호 링크로 변환되도록 파서를 정비함.
+- `연차휴가수당` 페이지의 쪽수 표식을 포함한 회귀 테스트를 추가함.
+- 변경 파일: `site/lib/wiki-syntax.mjs`, `site/tests/wiki-syntax.test.mjs`, `site/tests/build.test.mjs`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]

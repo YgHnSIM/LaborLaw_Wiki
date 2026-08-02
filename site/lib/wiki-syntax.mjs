@@ -1,5 +1,5 @@
-const SOURCE_CITATION_PATTERN = /\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]/g;
-const SOURCE_CITATION_AT_START_PATTERN = /^\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})\]/;
+const SOURCE_CITATION_PATTERN = /\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})(?:#(?:p|para|art)=[A-Za-z0-9._-]+)?\]/g;
+const SOURCE_CITATION_AT_START_PATTERN = /^\[@(SRC-[A-Z0-9][A-Z0-9._-]{2,})(?:#(?:p|para|art)=[A-Za-z0-9._-]+)?\]/;
 
 export function parseWikiLink(value) {
   const raw = String(value ?? "");

@@ -38,12 +38,16 @@ test("위키링크 추출과 치환은 같은 파서를 공유한다", () => {
 });
 
 test("근거 표식 추출과 제거가 동일한 문법을 사용한다", () => {
-  const markdown = "주장 [@SRC-LAW-001] 반복 [@SRC-LAW-001] 잘못된 [@src-law-001]";
-  assert.deepEqual(extractSourceCitations(markdown), ["SRC-LAW-001", "SRC-LAW-001"]);
+  const markdown = "주장 [@SRC-LAW-001] 반복 [@SRC-LAW-001#p=42] 조문 [@SRC-LAW-001#art=60] 잘못된 [@src-law-001]";
+  assert.deepEqual(extractSourceCitations(markdown), ["SRC-LAW-001", "SRC-LAW-001", "SRC-LAW-001"]);
   assert.deepEqual(parseSourceCitation("[@SRC-LAW-001] 뒤 문장"), {
     raw: "[@SRC-LAW-001]",
     sourceId: "SRC-LAW-001"
   });
+  assert.deepEqual(parseSourceCitation("[@SRC-LAW-001#para=17] 뒤 문장"), {
+    raw: "[@SRC-LAW-001#para=17]",
+    sourceId: "SRC-LAW-001"
+  });
   assert.equal(parseSourceCitation("앞 문장 [@SRC-LAW-001]"), null);
-  assert.equal(stripSourceCitations(markdown), "주장   반복   잘못된 [@src-law-001]");
+  assert.equal(stripSourceCitations(markdown), "주장   반복   조문   잘못된 [@src-law-001]");
 });

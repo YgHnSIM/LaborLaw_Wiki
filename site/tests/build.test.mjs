@@ -446,6 +446,11 @@ test("문장 단위 근거 표식을 안정적인 출처 항목으로 연결한�
   assert.match(html, /href="#evidence-SRC-SC-2020DA205837"/);
   assert.match(html, /<li id="evidence-SRC-SC-2020DA205837" tabindex="-1">/);
 
+  const locatorPage = result.wiki.pages.find((item) => item.data.title === "연차휴가수당");
+  const locatorHtml = await fs.readFile(outputPathForRoute(outputDir, locatorPage.route), "utf8");
+  assert.match(locatorHtml, /href="#evidence-SRC-ANNUAL-PAID-2026-PARK"/);
+  assert.doesNotMatch(locatorHtml, /\[@SRC-ANNUAL-PAID-2026-PARK#p=44\]/);
+
   const invalidPage = { ...page, relativePath: "invalid.md", body: "문장 [@SRC-NOT-DECLARED]", data: { ...page.data, source_refs: [] } };
   const renderer = createMarkdownRenderer({ lookup: result.wiki.lookup, basePath });
   assert.throws(() => renderMarkdownPage(renderer, invalidPage), /source_refs/);
