@@ -5,6 +5,7 @@ import {
   CATEGORY_META,
   CATEGORY_ORDER,
   encodeRoute,
+  INSTRUCTION_FILENAMES,
   loadWiki,
   normalizeBasePath,
   outputPathForRoute,
@@ -171,7 +172,7 @@ export async function buildSite(options = {}) {
 
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(outputDir, { recursive: true });
-  await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"));
+  await copyDirectory(path.join(rootDir, "site", "assets"), path.join(outputDir, "assets"), { exclude: INSTRUCTION_FILENAMES });
 
   await Promise.all(renderedPages.map(async ({ page, rendered }) => {
     const html = page.route === "/catalog/"

@@ -61,6 +61,19 @@ class SyncFrontmatterTests(unittest.TestCase):
         self.assertEqual(SYNC_MODULE.section_name("case"), "사건")
         self.assertEqual(SYNC_MODULE.type_for("overview.md"), "meta")
 
+    def test_instruction_files_are_not_catalogued(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            wiki_root = Path(directory) / "wiki"
+            wiki_root.mkdir()
+            (wiki_root / "AGENTS.md").write_text("# instructions\n", encoding="utf-8")
+            (wiki_root / "meta").mkdir()
+            page = wiki_root / "meta" / "sample.md"
+            page.write_text("---\ntitle: 샘플\n---\n", encoding="utf-8")
+
+            paths = SYNC_MODULE.page_paths(wiki_root)
+
+        self.assertEqual([path.relative_to(wiki_root).as_posix() for path in paths], ["meta/sample.md"])
+
 
 if __name__ == "__main__":
     unittest.main()

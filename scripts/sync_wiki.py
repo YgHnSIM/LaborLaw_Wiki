@@ -17,7 +17,7 @@ INDEX = WIKI / "index.md"
 sys.path.insert(0, str(ROOT))
 
 from scripts.frontmatter import parse_frontmatter_lines  # noqa: E402
-from scripts.schema import INDEX_SECTION_BY_TYPE, TYPE_BY_DIRECTORY  # noqa: E402
+from scripts.schema import INSTRUCTION_FILENAMES, INDEX_SECTION_BY_TYPE, TYPE_BY_DIRECTORY  # noqa: E402
 
 
 def parse_page(path: Path, *, wiki_root: Path = WIKI) -> dict[str, object]:
@@ -74,8 +74,16 @@ def route_target(data: dict[str, object]) -> str:
     return title_of(data)
 
 
+def page_paths(wiki_root: Path = WIKI) -> list[Path]:
+    return [
+        path
+        for path in sorted(wiki_root.rglob("*.md"), key=lambda p: p.as_posix().casefold())
+        if path != wiki_root / "index.md" and path.name not in INSTRUCTION_FILENAMES
+    ]
+
+
 def generate() -> str:
-    pages = [parse_page(path) for path in sorted(WIKI.rglob("*.md"), key=lambda p: p.as_posix().casefold()) if path != INDEX]
+    pages = [parse_page(path) for path in page_paths()]
     grouped: dict[str, list[dict[str, object]]] = {name: [] for name in ["홈", "메타", "소스", "개념", "개체", "분석", "사건"]}
     for data in pages:
         rel = str(data["relative"])

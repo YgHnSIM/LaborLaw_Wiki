@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WIKI = ROOT / "wiki"
 sys.path.insert(0, str(ROOT / "scripts"))
 from lint_wiki import parse_yaml_value  # noqa: E402
+from schema import INSTRUCTION_FILENAMES  # noqa: E402
 
 
 TYPE_BY_DIRECTORY = {
@@ -180,6 +181,8 @@ def source_date(data: dict[str, object]) -> str:
 def migrate() -> None:
     pages: dict[str, tuple[Path, dict[str, object], str]] = {}
     for path in sorted(WIKI.rglob("*.md"), key=lambda p: p.as_posix().casefold()):
+        if path.name in INSTRUCTION_FILENAMES:
+            continue
         data, body = parse_frontmatter(path.read_text(encoding="utf-8"))
         pages[path.relative_to(WIKI).as_posix()] = (path, data, body)
 

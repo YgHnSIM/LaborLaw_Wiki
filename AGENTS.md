@@ -15,6 +15,34 @@
 
 ---
 
+## 계층형 AGENTS 지도
+
+이 루트 문서는 저장소 전체의 정본이다. 다음 하위 문서는 해당 경계의 실행·자료 형식·보존 규칙만 보충하며, 루트의 스키마·원본 불변성·검사 규칙을 대체하지 않는다.
+
+- `wiki/AGENTS.md`: 위키 콘텐츠의 작성·출처·색인·로그 경계
+- `wiki/data/AGENTS.md`: 연구 쟁점 JSON의 데이터 계약
+- `raw/AGENTS.md`: 원본 자료와 첨부파일의 불변성
+- `scripts/AGENTS.md`: Python 린터·색인·스키마 도구의 실행 계약
+- `site/AGENTS.md`: 정적 사이트 생성기·렌더러·브라우저 런타임
+- `site/assets/fonts/AGENTS.md`: 번들 글꼴의 바이너리·라이선스 보존
+- `tests/AGENTS.md`: Python 검증 도구 테스트 경계
+- `.github/AGENTS.md`: CI·Pages·CODEOWNERS 운영 경계
+
+`schema/`는 별도 문서 없이 루트 지침과 `scripts/AGENTS.md`가 다룬다. `_site/`, `node_modules/`, `.git/`, `.codegraph/`, `.obsidian/`, `tmp/`, `output/`, `.playwright-cli/`, `.codex-remote-attachments/`에는 AGENTS 문서를 만들지 않는다.
+
+## 실행 경로 지도
+
+| 심볼·진입점 | 위치 | 참조·역할 |
+|---|---|---|
+| `Linter.run()` | `scripts/lint_wiki.py:180` | CLI·CI의 위키·출처·로그·기준점 검증 |
+| `generate()` | `scripts/sync_wiki.py:77` | `wiki/index.md` 결정적 생성·검사 |
+| `loadWiki()` | `site/lib/wiki.mjs:258` | 위키 문서·출처·연구 데이터 모델 구성 |
+| `buildSite()` | `site/build.mjs:158` | HTML·검색색인·Pages 산출물 생성; `site/tests/build.test.mjs`가 통합 검증 |
+| `parseWikiLink()` | `site/lib/wiki-syntax.mjs:4` | 위키링크·근거 표식 파싱; 문법 테스트가 검증 |
+| `app.js` 초기화 | `site/assets/app.js:1` | 탐색·검색·필터·근거 패널의 브라우저 동작 |
+
+`site/`를 바꾸면 서버 렌더링 계약과 브라우저 동작을 함께 확인하고, `scripts/`·`schema/`를 바꾸면 현재 린트와 기준점 린트의 차이를 함께 확인한다.
+
 ## 1. 디렉토리 구조
 
 ```text
@@ -74,8 +102,8 @@ raw_sha256: [원본파일의 64자리 SHA-256]
 attachments: [raw/assets/첨부파일.png]
 source_urls: [https://공식-또는-원문-주소]
 retrieved: YYYY-MM-DD
-related_source_refs: [SRC-RELATED-ID]
-superseded_by: SRC-NEWER-ID
+source_relations: []
+record_status: available
 ```
 
 - `raw_sources`와 `raw_sha256`은 같은 순서·같은 개수로 대응하며, 해시는 실제 파일 바이트와 일치해야 합니다.
@@ -85,7 +113,7 @@ superseded_by: SRC-NEWER-ID
 - `publisher`는 실제 자료 발행자입니다. 보도자료가 아닌 기사에서 보도 대상 기관을 `publisher`나 `authority`로 가장하지 않습니다. 필요하면 `reported_authority`에 보도 대상 기관의 실제 이름(예: `울산지방노동위원회`)을 적습니다.
 - `source_type`은 자료 자체의 성격입니다. 기사에 노동위원회 판정이 인용되어 있어도 `news`이며, 노동위원회 공식 판정문일 때만 `official_decision`입니다.
 - 권장 값은 `official_law`, `official_decision`, `official_guidance`, `official_record`, `academic_paper`, `research_report`, `news`, `practitioner_commentary`, `llm_report`, `stakeholder_statement`입니다. 새 유형이 필요하면 의미가 겹치지 않는 `lower_snake_case` 값을 사용하고 운영 지침에 추가합니다.
-- `related_source_refs`는 같은 사건의 선행·후속 자료처럼 직접 관련된 다른 출처 ID를 연결하는 선택 목록입니다. `superseded_by`는 이 자료를 대체한 단일 후속 출처 ID이며 이때 `legal_status: superseded`를 함께 사용합니다. 둘 다 존재하는 `source_id`만 가리키며 자기 자신을 참조하지 않습니다.
+- `source_relations`는 같은 사건의 선행·후속 자료처럼 직접 관련된 다른 출처 ID를 관계 유형과 함께 연결하는 선택 목록입니다. `record_status`는 출처 기록의 현재 가용 상태를 표시합니다. 관계 대상은 존재하는 `source_id`만 가리키며 자기 자신을 참조하지 않습니다.
 
 출처의 발행일과 출처가 보도·해설하는 결정일은 다음처럼 구분합니다.
 
@@ -137,7 +165,7 @@ authority: 법령 | 대법원 | 헌법재판소 | 고용노동부 | 중앙노동
 effective_date: YYYY-MM-DD
 decision_date: YYYY-MM-DD
 promulgation_date: YYYY-MM-DD
-legal_status: current | amended | repealed | overruled | superseded | uncertain
+normative_status: current | amended | repealed | overruled | uncertain
 confidence: high | medium | low
 ```
 
@@ -418,7 +446,7 @@ npm run build
 - `overview.md`는 `/`, `index.md`는 `/catalog/`, `log.md`는 `/log/`로 내보냅니다. 출처 페이지 URL은 안정적인 `source_id`를 사용합니다.
 - 위키링크는 파일 stem, 프론트매터 `title`, `aliases`를 모두 해석합니다. 해소되지 않는 링크나 중복 URL이 있으면 빌드를 실패시킵니다.
 - 본문 H1은 레이아웃 H1과 중복하지 않도록 제거하고 최종 HTML마다 H1을 하나만 둡니다.
-- `source_refs`, `related_source_refs`, `superseded_by`는 실제 출처 페이지 링크로 만들고, 출처 페이지에는 일반 페이지의 역참조를 표시합니다.
+- `source_refs`와 `source_relations`는 실제 출처 페이지의 안정적 ID를 기준으로 연결하고, 출처 페이지에는 일반 페이지의 역참조를 표시합니다. 기록 상태는 `record_status`로 표시합니다.
 - 검색 색인에는 제목·별칭·본문·파일 stem·출처 ID·발행기관·사건번호·의안번호를 포함합니다. `index.md`와 `log.md`의 반복 본문은 검색 가중치 오염을 막기 위해 제외합니다.
 - `[@SRC-ID]` 근거 표식은 해당 페이지의 `source_refs`에 있는 ID만 허용하며, 웹에서는 근거 패널 항목으로 이동하는 번호 링크로 렌더링합니다.
 - `raw/` 파일은 Pages artifact에 복사하지 않습니다. 원본 링크는 배포 커밋 SHA에 고정된 GitHub blob URL을 사용합니다.

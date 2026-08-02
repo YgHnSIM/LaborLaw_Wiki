@@ -36,6 +36,7 @@ from scripts.schema import (  # noqa: E402
     CONFIDENCE_VALUES,
     EVENT_STATUSES,
     HIGH_RISK_PATTERN,
+    INSTRUCTION_FILENAMES,
     INDEX_SECTION_BY_TYPE,
     LEGAL_AREAS,
     NORMATIVE_STATUSES,
@@ -212,6 +213,8 @@ class Linter:
 
     def load_pages(self) -> None:
         for path in sorted(WIKI.rglob("*.md"), key=lambda p: p.as_posix().casefold()):
+            if path.name in INSTRUCTION_FILENAMES:
+                continue
             rel = path.relative_to(WIKI).as_posix()
             if rel != unicodedata.normalize("NFC", rel):
                 self.error("ENCODING_FILENAME_NFC", path, "위키 파일명이 NFC 정규형이 아닙니다.")
@@ -812,7 +815,7 @@ class Linter:
                 continue
             if not path.is_file():
                 continue
-            if rel in ignored or path.name in {".gitkeep", ".DS_Store", "Thumbs.db"}:
+            if rel in ignored or path.name in INSTRUCTION_FILENAMES or path.name in {".gitkeep", ".DS_Store", "Thumbs.db"}:
                 continue
             if rel not in self.raw_references:
                 self.error("RAW_UNREFERENCED", path, "어떤 출처 페이지의 raw_sources 또는 attachments에도 등록되지 않았습니다.")

@@ -1387,6 +1387,13 @@ source_refs: []
 - `scripts/lint_wiki.py`에서 사건 당사자의 `party_entity_refs`를 선택적 연결로 검증하도록 조정함. `raw/` 원본은 변경하지 않음.
 - 변경 파일: `wiki/sources/`, `wiki/cases/`, `wiki/concepts/연차유급휴가.md`, `wiki/concepts/연차휴가수당.md`, `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`, `scripts/lint_wiki.py`, `wiki/index.md`.
 
+## [2026-08-02] chore | 계층형 AGENTS 지식 기반 초기화
+
+- 기존 루트 `AGENTS.md`를 유지하면서 저장소 실행 경로와 v2 필드 안내, 계층 구조 지도를 보강하고 `wiki/meta/출처 추적 및 최신성 관리.md`의 v1 필드 안내를 v2에 맞게 정정함.
+- `wiki/AGENTS.md`, `wiki/data/AGENTS.md`, `raw/AGENTS.md`, `scripts/AGENTS.md`, `site/AGENTS.md`, `site/assets/fonts/AGENTS.md`, `tests/AGENTS.md`, `.github/AGENTS.md`를 복잡도·보존 위험·실행 경계에 따라 추가함.
+- 생성물·벤더·임시 경로에는 중복 지침을 만들지 않았으며, 기존 `raw/` 파일은 변경하지 않음.
+- 변경 파일: `AGENTS.md`, 하위 `AGENTS.md` 8개, `scripts/schema.py`, `scripts/sync_wiki.py`, `scripts/lint_wiki.py`, `scripts/migrate_schema_v2.py`, `site/lib/wiki.mjs`, `site/tests/build.test.mjs`, `tests/test_sync_wiki.py`, `wiki/meta/출처 추적 및 최신성 관리.md`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]

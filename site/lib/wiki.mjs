@@ -7,6 +7,7 @@ import { extractWikiLinks, replaceWikiLinks, stripSourceCitations } from "./wiki
 export { extractWikiLinks };
 
 export const CATEGORY_ORDER = ["concepts", "analyses", "entities", "cases", "sources", "meta"];
+export const INSTRUCTION_FILENAMES = new Set(["AGENTS.md", "CLAUDE.md"]);
 
 export const CATEGORY_META = {
   concepts: { label: "개념", shortLabel: "개념", number: "01", description: "조문과 판단기준, 노동법의 핵심 개념" },
@@ -250,7 +251,7 @@ async function listMarkdownFiles(directory) {
   for (const entry of entries) {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) results.push(...await listMarkdownFiles(fullPath));
-    else if (entry.isFile() && entry.name.endsWith(".md")) results.push(fullPath);
+    else if (entry.isFile() && entry.name.endsWith(".md") && !INSTRUCTION_FILENAMES.has(entry.name)) results.push(fullPath);
   }
   return results;
 }

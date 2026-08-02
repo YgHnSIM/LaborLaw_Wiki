@@ -6,7 +6,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSite } from "../build.mjs";
-import { outputPathForRoute, siteHref } from "../lib/wiki.mjs";
+import { INSTRUCTION_FILENAMES, outputPathForRoute, siteHref } from "../lib/wiki.mjs";
 import { createMarkdownRenderer, renderMarkdownPage } from "../lib/render-markdown.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -80,7 +80,7 @@ function researchMembershipShape(memberships) {
 
 before(async () => {
   const wikiDir = path.join(rootDir, "wiki");
-  const wikiFiles = (await listFiles(wikiDir)).filter((file) => file.endsWith(".md"));
+  const wikiFiles = (await listFiles(wikiDir)).filter((file) => file.endsWith(".md") && !INSTRUCTION_FILENAMES.has(path.basename(file)));
   expectedPageCount = wikiFiles.length;
   expectedWikiLinkCount = 0;
   expectedCategoryCounts = { concepts: 0, analyses: 0, entities: 0, cases: 0, sources: 0, meta: 0 };
@@ -474,6 +474,7 @@ test("Pages 산출물에 raw 원본이나 PDF를 복제하지 않는다", async 
   const relative = files.map((file) => path.relative(outputDir, file).replaceAll("\\", "/"));
   assert.equal(relative.some((file) => file.startsWith("raw/")), false);
   assert.equal(relative.some((file) => /\.(?:pdf|png)$/i.test(file)), false);
+  assert.equal(relative.some((file) => INSTRUCTION_FILENAMES.has(path.basename(file))), false);
   assert.ok(relative.includes(".nojekyll"));
   assert.ok(relative.includes("sitemap.xml"));
   assert.ok(relative.includes("manifest.webmanifest"));
