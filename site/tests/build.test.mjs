@@ -644,6 +644,31 @@ test("홈은 연구 데스크를 유지하고 문서·분류의 쟁점 패널은
   assert.doesNotMatch(categoryHtml, /(?:data-context-toggle|data-research-context|id="knowledge-context")/);
 });
 
+test("홈페이지가 최근 추가 문서 3개를 표시한다", async () => {
+  const homeHtml = await fs.readFile(outputPathForRoute(outputDir, "/"), "utf8");
+  const collator = new Intl.Collator("ko-KR", { numeric: true, sensitivity: "base" });
+  const expectedRecent = result.wiki.pages
+    .filter((page) => page.category !== "meta")
+    .sort((left, right) => (
+      String(right.data.created).localeCompare(String(left.data.created))
+      || String(right.data.updated).localeCompare(String(left.data.updated))
+      || collator.compare(left.data.title, right.data.title)
+    ))
+    .slice(0, 3);
+  const cards = [...homeHtml.matchAll(/<li\b[^>]*\bdata-recent-document\b[^>]*>([\s\S]*?)<\/li>/g)].map((match) => match[1]);
+
+  assert.match(homeHtml, /<h2 id="recent-documents-title">최근 추가된 문서<\/h2>/);
+  assert.equal(cards.length, 3, "최근 추가 문서 카드는 정확히 3개다");
+  assert.deepEqual(
+    cards.map((card) => card.match(/<h2>([^<]+)<\/h2>/)?.[1]),
+    expectedRecent.map((page) => page.data.title),
+    "카드는 생성일·수정일·제목 순으로 정렬된다"
+  );
+  for (const [index, page] of expectedRecent.entries()) {
+    assert.ok(cards[index].includes(`추가 ${page.data.created.replaceAll("-", ".")}`), `${page.data.title}: 생성일 표시`);
+  }
+});
+
 test("전역 메뉴는 반응형 서랍으로 동작한다", async () => {
   const css = await fs.readFile(path.join(rootDir, "site", "assets", "styles.css"), "utf8");
   const mediumStart = css.indexOf("@media (max-width: 78rem)");

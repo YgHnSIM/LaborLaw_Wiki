@@ -413,11 +413,33 @@ function renderResearchDesk(wiki, basePath) {
   </section>`;
 }
 
+function renderRecentDocuments(wiki, basePath) {
+  const recentPages = wiki.pages
+    .filter((page) => page.category !== "meta")
+    .sort((left, right) => (
+      String(right.data.created).localeCompare(String(left.data.created))
+      || String(right.data.updated).localeCompare(String(left.data.updated))
+      || collator.compare(left.data.title, right.data.title)
+    ))
+    .slice(0, 3);
+  const cards = recentPages.map((page) => `<li data-recent-document data-document-card data-status="${escapeAttr(page.data.status)}" data-area="${escapeAttr(page.data.legal_area || "")}">
+    <a href="${siteHref(basePath, page.route)}">
+      <div class="document-card-copy"><h2>${escapeHtml(page.data.title)}</h2><p>${escapeHtml(page.excerpt)}</p></div>
+      <footer>${pageStatusBadge(page)}<span>${escapeHtml(CATEGORY_META[page.category].shortLabel)}</span><span>추가 ${escapeHtml(displayDate(page.data.created))}</span></footer>
+    </a>
+  </li>`).join("");
+  return `<section class="document-list recent-documents" aria-labelledby="recent-documents-title">
+    <header class="catalog-group-head"><h2 id="recent-documents-title">최근 추가된 문서</h2></header>
+    <ol class="document-grid">${cards}</ol>
+  </section>`;
+}
+
 function renderResearchWorkbench({ page, articleHtml, wiki, basePath }) {
   return `<section class="research-workbench" aria-label="노동법 리서치 데스크">
     <header class="research-workbench-head"><div class="research-workbench-copy"><p class="page-kicker">대한민국 노동법 리서치</p><h1>${escapeHtml(page.data.title)}</h1><p>${escapeHtml(page.excerpt)}</p></div>${renderHomeSearch(basePath, wiki)}</header>
     ${renderResearchDesk(wiki, basePath)}
     ${renderResearchMeta(wiki, basePath)}
+    ${renderRecentDocuments(wiki, basePath)}
     <details class="home-about"><summary>위키 기준과 운영 현황 자세히 보기</summary><article class="prose home-description">${articleHtml}</article></details>
   </section>`;
 }
