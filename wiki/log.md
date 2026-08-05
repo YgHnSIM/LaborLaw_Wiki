@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: ["로그", "변경 이력"]
 tags: ["type/meta", "domain/labor-law", "status/active"]
 created: 2026-06-01
-updated: 2026-08-02
+updated: 2026-08-06
 status: active
 summary: "AGENTS.md를 대한민국 노동법 위키 운영에 맞게 개정함. - 입법 과정 및 역사적 맥락 분석을 wiki/analyses/의 주요 문서 유형으로 추가함. - 공식 소스 우선순위, 노동법 전용 메타데이터, 태그 체계, 핵심 개념 축을 추가함. - 루트 README.md를 생성해 프로젝트 개요와 운영 원칙을 정리함. - 초기 wiki/index.md,…"
 source_refs: []
@@ -1410,8 +1410,16 @@ source_refs: []
 - 출처 페이지의 PDF/인쇄 쪽수 표식과 공식 법령·판례 표식을 함께 검증했으며, `raw/` 원본과 판결 당사자별 entity 문서는 변경하지 않음.
 - 변경 파일: `wiki/sources/연차 휴가의 법적 성격과 쟁점.md`, `wiki/sources/연차휴가제도의 보상적 성격에 관한 비판적 검토.md`, `wiki/sources/연차유급휴가권의 구조에 대한 고찰.md`, `wiki/sources/연차유급휴가제도의 해석상 쟁점 - 유급의 의미를 중심으로.md`, `wiki/sources/공평하고 실질적인 휴식을 위한 연차휴가제도 개선방안에 관한 소고.md`, `wiki/sources/연차유급휴가의 보편적·실질적 보장을 위한 법제도 개선방안.md`, `wiki/analyses/연차유급휴가의 권리구조와 실질적 휴식 보장.md`, `wiki/concepts/연차유급휴가.md`; `wiki/index.md`는 재생성·검사 결과 내용 변경 없음.
 
+## [2026-08-06] update | 문서 내용 입법사 및 판례 맥락 중심 2단계 종합 보강
+
+- 전수 점검을 거쳐 `wiki/cases/` 14개 사건 문서 전체와 `wiki/concepts/` 주요 개념 문서의 서술을 당사자 주장, 판단 논거 및 판례 맥락 중심으로 대폭 보강함. (Phase 1 완료)
+- `wiki/analyses/` 핵심 쟁점 분석 문서들의 입법사·제도적 배경 및 2013년 vs 2024년 통상임금 전원합의체 법리 비교, 도급과 근로자파견 구별 5대 징표, 근로시간·대기시간 판단 기준 등을 심층 학술 서술로 보강함. (Phase 2 완료)
+- 고위험 문단 및 판정·판결 요지에 문단별 정밀 인용 표식(`[@SRC-ID]`)을 수용하고, `scripts/sync_wiki.py`로 `wiki/index.md`를 결정적 갱신함. `raw/` 원본은 변경하지 않음.
+- 변경 파일: `wiki/cases/` 전체, `wiki/concepts/` 주요 개념 문서, `wiki/analyses/` 주요 쟁점 문서, `wiki/index.md`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
 - [[교섭단위 분리]]
 - [[원하청 교섭]]
+

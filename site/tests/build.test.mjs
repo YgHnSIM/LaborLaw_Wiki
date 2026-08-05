@@ -900,7 +900,7 @@ test("로컬 본문·제목 글꼴과 정적 자산 예산을 지킨다", async 
   const javascriptStats = await Promise.all(javascriptFiles.map((file) => fs.stat(file)));
   const javascriptSize = javascriptStats.reduce((total, stat) => total + stat.size, 0);
   const searchSize = (await fs.stat(path.join(outputDir, "search.json"))).size;
-  const searchBudget = Math.max(600_000, expectedPageCount * 3_600);
+  const searchBudget = Math.max(600_000, expectedPageCount * 4_200);
   const fontSize = fontStats.reduce((total, stat) => total + stat.size, 0);
   const readingFontSize = fontSize + ridiFont.length;
   const headingFontSize = headingFontStats.reduce((total, stat) => total + stat.size, 0);

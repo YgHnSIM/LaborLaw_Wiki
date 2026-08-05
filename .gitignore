@@ -43,3 +43,4 @@ output/
 .playwright-cli/
 readmeplus.md
 
+.omo/
