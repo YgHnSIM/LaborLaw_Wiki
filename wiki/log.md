@@ -1417,6 +1417,12 @@ source_refs: []
 - 고위험 문단 및 판정·판결 요지에 문단별 정밀 인용 표식(`[@SRC-ID]`)을 수용하고, `scripts/sync_wiki.py`로 `wiki/index.md`를 결정적 갱신함. `raw/` 원본은 변경하지 않음.
 - 변경 파일: `wiki/cases/` 전체, `wiki/concepts/` 주요 개념 문서, `wiki/analyses/` 주요 쟁점 문서, `wiki/index.md`, `wiki/log.md`.
 
+## [2026-08-06] refactor | JDC 면세점 사건 용어 오타 정정
+
+- `wiki/cases/JDC 면세점 판매사원 원청교섭 사건.md` 문서 내 '파급 구조'를 표준 용어인 '간접고용 구조'로 정정함.
+- `scripts/sync_wiki.py`와 `scripts/lint_wiki.py`를 실행하여 색인 및 스키마 검사를 완료함. `raw/` 원본은 변경하지 않음.
+- 변경 파일: `wiki/cases/JDC 면세점 판매사원 원청교섭 사건.md`, `wiki/index.md`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
