@@ -12,7 +12,7 @@ decision_source_refs: []
 case_id: CASE-COUPANGCLS-2026-04-09
 case_numbers: ["미공개"]
 parties: ["쿠팡로지스틱스서비스", "하청 택배기사 노동조합들"]
-party_entity_refs: ["ENT-28949029F3"]
+party_entity_refs: []
 issue_refs: ["교섭단위 분리", "사용자성", "교섭창구 단일화"]
 event_status: decided
 verification_status: partial
@@ -54,12 +54,12 @@ review_reason: 사건번호·공식 결정서 공개 여부 재확인
 
 ## 관련 항목
 
-- [[쿠팡로지스틱스서비스]]
+- 쿠팡로지스틱스서비스
 - [[교섭단위 분리]]
 - [[교섭창구 단일화]]
 - [[공정대표의무]]
 - [[사용자성]]
 - [[실질적 지배력]]
 - [[원하청 교섭]]
-- [[노동위원회]]
+- 노동위원회
 

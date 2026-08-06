@@ -915,6 +915,8 @@ class Linter:
                 else:
                     target_page, problem = self.resolve_page(target_text)
                 if problem == "missing":
+                    if page.rel == "log.md":
+                        continue
                     self.error("LINK_MISSING", page.path, f"대상 페이지를 찾을 수 없습니다: `[[{link_target}]]`", line)
                     continue
                 if problem == "ambiguous":

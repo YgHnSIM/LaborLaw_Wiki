@@ -75,7 +75,7 @@
         {"id": "recognition", "label": "인정 기준", "pageRefs": ["산업재해", "업무상 재해"]},
         {"id": "compensation", "label": "보상", "pageRefs": ["산재보상"]},
         {"id": "safety", "label": "안전", "pageRefs": ["산업안전보건", "중대재해"]},
-        {"id": "analysis", "label": "절차 분석", "pageRefs": ["산업재해 인정과 산재보상 절차", "근로복지공단"]}
+        {"id": "analysis", "label": "절차 분석", "pageRefs": ["산업재해 인정과 산재보상 절차"]}
       ]
     },
     {
@@ -84,8 +84,8 @@
       "description": "고용평등과 직장 내 괴롭힘의 보호·구제 경로를 확인합니다.",
       "stages": [
         {"id": "protection", "label": "보호 기준", "pageRefs": ["고용평등", "직장 내 괴롭힘"]},
-        {"id": "remedy", "label": "구제 기관", "pageRefs": ["노동위원회"]},
-        {"id": "analysis", "label": "관련 분석", "pageRefs": ["고용상 성차별과 직장 내 성희롱 구제", "기간제·단시간근로 보호와 차별시정 구조"]}
+        {"id": "remedy", "label": "구제 절차", "pageRefs": ["고용상 성차별과 직장 내 성희롱 구제"]},
+        {"id": "analysis", "label": "관련 분석", "pageRefs": ["기간제·단시간근로 보호와 차별시정 구조"]}
       ]
     },
     {
@@ -93,7 +93,7 @@
       "question": "법 개정은 어떤 절차와 쟁점을 거쳤는가",
       "description": "입법 절차와 개정 조문의 형성 과정을 확인합니다.",
       "stages": [
-        {"id": "process", "label": "절차", "pageRefs": ["입법과정", "국회 환경노동위원회", "국회 법제사법위원회", "본회의 처리"]},
+        {"id": "process", "label": "절차", "pageRefs": ["입법과정", "본회의 처리"]},
         {"id": "provisions", "label": "개정 조문", "pageRefs": ["노동조합법", "노동조합법 제2조", "노동조합법 제3조", "노란봉투법"]},
         {"id": "analysis", "label": "입법 분석", "pageRefs": ["노동조합법 제2조·제3조 개정 입법 과정"]}
       ]

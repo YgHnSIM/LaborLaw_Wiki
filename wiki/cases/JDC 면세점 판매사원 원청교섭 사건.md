@@ -12,7 +12,7 @@ decision_source_refs: []
 case_id: CASE-JDC-2026-04-09
 case_numbers: ["미공개"]
 parties: ["제주국제자유도시개발센터", "백화점면세점판매서비스노동조합"]
-party_entity_refs: ["ENT-D7E3564098"]
+party_entity_refs: []
 issue_refs: ["사용자성", "교섭단위 분리", "원하청 교섭"]
 event_status: pending
 verification_status: partial
@@ -53,11 +53,11 @@ review_reason: 사건번호·공식 결정서 공개 여부 재확인
 
 ## 관련 항목
 
-- [[제주국제자유도시개발센터]]
+- 제주국제자유도시개발센터
 - [[사용자성]]
 - [[실질적 지배력]]
 - [[원하청 교섭]]
 - [[교섭단위 분리]]
 - [[교섭창구 단일화]]
-- [[노동위원회]]
+- 노동위원회
 

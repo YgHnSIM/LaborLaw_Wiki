@@ -99,7 +99,7 @@ function renderReaderSettings() {
 }
 
 function renderTopbar({ basePath, repositoryUrl, currentPage, currentCategory }) {
-  const primary = ["concepts", "analyses", "entities", "cases", "sources"]
+  const primary = ["concepts", "analyses", "cases", "sources"]
     .map((category) => {
       const current = currentCategory === category ? ' aria-current="page"' : "";
       return `<a href="${siteHref(basePath, `/${category}/`)}"${current}>${escapeHtml(CATEGORY_META[category].shortLabel)}</a>`;

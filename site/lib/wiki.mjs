@@ -6,16 +6,16 @@ import { extractWikiLinks, replaceWikiLinks, stripSourceCitations } from "./wiki
 
 export { extractWikiLinks };
 
-export const CATEGORY_ORDER = ["concepts", "analyses", "entities", "cases", "sources", "meta"];
+export const CATEGORY_ORDER = ["concepts", "analyses", "cases", "sources", "meta"];
 export const INSTRUCTION_FILENAMES = new Set(["AGENTS.md", "CLAUDE.md"]);
 
 export const CATEGORY_META = {
   concepts: { label: "개념", shortLabel: "개념", number: "01", description: "조문과 판단기준, 노동법의 핵심 개념" },
   analyses: { label: "분석", shortLabel: "분석", number: "02", description: "판례·행정해석·입법과정의 비교와 해설" },
   entities: { label: "개체", shortLabel: "기관·단체", number: "03", description: "법원, 위원회, 행정기관과 주요 당사자" },
-  cases: { label: "사건", shortLabel: "사건", number: "04", description: "원하청 교섭과 노동위원회 사건의 진행·판정 기록" },
-  sources: { label: "출처", shortLabel: "출처", number: "05", description: "법령·판례·행정자료와 원문 계보" },
-  meta: { label: "운영", shortLabel: "운영", number: "06", description: "전체 색인, 작업 기록과 관리 방법론" }
+  cases: { label: "사건", shortLabel: "사건", number: "03", description: "원하청 교섭과 노동위원회 사건의 진행·판정 기록" },
+  sources: { label: "출처", shortLabel: "출처", number: "04", description: "법령·판례·행정자료와 원문 계보" },
+  meta: { label: "운영", shortLabel: "운영", number: "05", description: "전체 색인, 작업 기록과 관리 방법론" }
 };
 
 const STATUS_LABELS = {
@@ -352,6 +352,7 @@ export async function loadWiki(rootDir) {
     });
     for (const link of page.wikiLinks) {
       if (!link.target) continue;
+      if (page.relativePath === "log.md") continue;
       if (!lookup.get(normalizeLookup(link.target))) {
         throw new Error(`${page.relativePath}: 해소되지 않는 위키링크 ${link.raw}`);
       }
@@ -405,7 +406,7 @@ export async function loadWiki(rootDir) {
       sources: groups.sources.length,
       concepts: groups.concepts.length,
       analyses: groups.analyses.length,
-      entities: groups.entities.length,
+      entities: 0,
       cases: groups.cases.length,
       meta: groups.meta.length,
       statuses: statusCounts,

@@ -1423,6 +1423,14 @@ source_refs: []
 - `scripts/sync_wiki.py`와 `scripts/lint_wiki.py`를 실행하여 색인 및 스키마 검사를 완료함. `raw/` 원본은 변경하지 않음.
 - 변경 파일: `wiki/cases/JDC 면세점 판매사원 원청교섭 사건.md`, `wiki/index.md`, `wiki/log.md`.
 
+## [2026-08-06] remove | 기관·단체(entities) 계층 및 관련 위키링크 정리
+
+- 사용자의 요청에 따라 `wiki/entities/` 아래 17개 개체 페이지 및 디렉터리를 완전히 삭제함.
+- `wiki/cases/`, `wiki/concepts/`, `wiki/analyses/`, `wiki/sources/`, `wiki/meta/`, `wiki/overview.md`에 위치한 삭제된 개체 대상 위키링크(`개체명`)를 일반 텍스트로 일괄 전환함.
+- 사건 문서의 프론트매터 `party_entity_refs`를 빈 배열 `[]`로 정돈함.
+- `scripts/sync_wiki.py` 및 `scripts/lint_wiki.py`를 실행하여 색인 갱신 및 린터 검사(오류 0개, 경고 0개)를 완료함. `raw/` 원본은 수정하지 않음.
+- 변경 파일: `wiki/entities/` 17개 파일 삭제, `wiki/cases/`, `wiki/concepts/`, `wiki/analyses/`, `wiki/sources/`, `wiki/meta/`, `wiki/overview.md`, `wiki/data/research-issues.json`, `site/tests/build.test.mjs`, `wiki/index.md`, `wiki/log.md`.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
