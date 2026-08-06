@@ -1431,6 +1431,12 @@ source_refs: []
 - `scripts/sync_wiki.py` 및 `scripts/lint_wiki.py`를 실행하여 색인 갱신 및 린터 검사(오류 0개, 경고 0개)를 완료함. `raw/` 원본은 수정하지 않음.
 - 변경 파일: `wiki/entities/` 17개 파일 삭제, `wiki/cases/`, `wiki/concepts/`, `wiki/analyses/`, `wiki/sources/`, `wiki/meta/`, `wiki/overview.md`, `wiki/data/research-issues.json`, `site/tests/build.test.mjs`, `wiki/index.md`, `wiki/log.md`.
 
+## [2026-08-06] update | 학술논문 소스 페이지 31개 체계적 상세 보강
+
+- `wiki/sources/` 디렉토리 내 `academic_paper` 소스 요약 페이지 31개를 표준 템플릿(문서 성격, 핵심 요약, 주요 논지별 상세, 학설 관계, 활용 메모, 관련 항목)에 맞춰 전면 보강함.
+- 각 논문의 PDF 및 텍스트 추출본을 기반으로 주요 논지별 상세(쪽수, 법리 구조, 근거)를 심층 서술하고 학설 간 지지·비판·보완 관계를 명시함.
+- `scripts/sync_wiki.py` 및 `scripts/lint_wiki.py`를 실행하여 전체 207개 위키 페이지 검사에서 오류 0개, 경고 0개 통과를 확인하고 `wiki/index.md`를 갱신함. `raw/` 원본은 변경하지 않음.
+
 ## 관련 항목
 
 - [[교섭창구 단일화]]
