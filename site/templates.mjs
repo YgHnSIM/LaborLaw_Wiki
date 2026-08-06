@@ -295,7 +295,10 @@ function renderSourceRecord(page, { basePath, repositoryUrl, repositoryRef }) {
   const rawLinks = data.raw_sources.map((file) => `<li><a href="${escapeAttr(repoFileLink(file))}" target="_blank" rel="noopener noreferrer">${escapeHtml(path.posix.basename(file))} ${svgIcon("external")}</a></li>`).join("");
   const attachmentLinks = data.attachments.map((file) => `<li><a href="${escapeAttr(repoFileLink(file))}" target="_blank" rel="noopener noreferrer">첨부: ${escapeHtml(path.posix.basename(file))} ${svgIcon("external")}</a></li>`).join("");
   const relationLabels = { same_matter: "같은 사안", updates: "갱신", supersedes: "대체", appeal_of: "항소·상고", interprets: "해석", amends: "개정" };
-  const related = page.sourceRelations.map((relation) => `<li><span>${escapeHtml(relationLabels[relation.type] || relation.type)}</span><a href="${siteHref(basePath, relation.source.route)}">${escapeHtml(relation.source.data.title)}</a></li>`).join("");
+  const related = page.sourceRelations.map((relation) => {
+    const label = relationLabels[relation.type] || relation.type;
+    return `<li><span class="relation-tag relation-type-${escapeAttr(relation.type)}">${escapeHtml(label)}</span><span class="relation-sep" aria-hidden="true"> : </span><a href="${siteHref(basePath, relation.source.route)}">${escapeHtml(relation.source.data.title)}</a></li>`;
+  }).join("");
   const superseded = page.supersedingSource ? `<p class="superseded-link"><span>대체 자료</span><a href="${siteHref(basePath, page.supersedingSource.route)}">${escapeHtml(page.supersedingSource.data.title)}</a></p>` : "";
   const cases = page.casePages?.length ? `<div class="related-sources"><h3>연결 사건</h3><ul>${page.casePages.map((candidate) => `<li><a href="${siteHref(basePath, candidate.route)}">${escapeHtml(candidate.data.title)}</a></li>`).join("")}</ul></div>` : "";
   const links = sourceUrls || rawLinks || attachmentLinks ? `<div class="record-links">

@@ -3,7 +3,7 @@ title: 작업 기록
 aliases: ["로그", "변경 이력"]
 tags: ["type/meta", "domain/labor-law", "status/active"]
 created: 2026-06-01
-updated: 2026-08-06
+updated: 2026-08-07
 status: active
 summary: "AGENTS.md를 대한민국 노동법 위키 운영에 맞게 개정함. - 입법 과정 및 역사적 맥락 분석을 wiki/analyses/의 주요 문서 유형으로 추가함. - 공식 소스 우선순위, 노동법 전용 메타데이터, 태그 체계, 핵심 개념 축을 추가함. - 루트 README.md를 생성해 프로젝트 개요와 운영 원칙을 정리함. - 초기 wiki/index.md,…"
 source_refs: []
@@ -1436,6 +1436,12 @@ source_refs: []
 - `wiki/sources/` 디렉토리 내 `academic_paper` 소스 요약 페이지 31개를 표준 템플릿(문서 성격, 핵심 요약, 주요 논지별 상세, 학설 관계, 활용 메모, 관련 항목)에 맞춰 전면 보강함.
 - 각 논문의 PDF 및 텍스트 추출본을 기반으로 주요 논지별 상세(쪽수, 법리 구조, 근거)를 심층 서술하고 학설 간 지지·비판·보완 관계를 명시함.
 - `scripts/sync_wiki.py` 및 `scripts/lint_wiki.py`를 실행하여 전체 207개 위키 페이지 검사에서 오류 0개, 경고 0개 통과를 확인하고 `wiki/index.md`를 갱신함. `raw/` 원본은 변경하지 않음.
+
+## [2026-08-07] update | 출처 기록 출처 관계 구분 표지 및 뱃지 UI 개선
+
+- 문서 상세 정보의 '출처 기록 > 출처 관계' 항목에서 관계 유형(같은 사안, 갱신, 대체 등)과 연결 문서 제목 사이에 콜론 구분 표지(` : `) 및 관계 태그 뱃지 스타일(`.relation-tag`, `.relation-sep`)을 추가함.
+- `site/templates.mjs` 및 `site/assets/styles.css`를 수정하고, 브라우저 미리보기 테스트 및 전체 사이트 빌드/단위 테스트(`npm test`) 통과를 확인함.
+- 변경 파일: `site/templates.mjs`, `site/assets/styles.css`, `wiki/log.md`.
 
 ## 관련 항목
 

@@ -1632,6 +1632,50 @@ summary:focus-visible {
   font-size: 0.8rem;
 }
 
+.related-sources li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.related-sources .relation-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.related-sources .relation-type-updates,
+.related-sources .relation-type-amends {
+  background: var(--active-soft);
+  color: var(--active);
+}
+
+.related-sources .relation-type-supersedes {
+  background: var(--archived-soft);
+  color: var(--archived);
+}
+
+.related-sources .relation-type-appeal_of {
+  background: var(--review-soft);
+  color: var(--review);
+}
+
+.related-sources .relation-sep {
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .superseded-link {
   display: grid;
   gap: 0.25rem;
