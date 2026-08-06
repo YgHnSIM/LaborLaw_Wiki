@@ -48,7 +48,7 @@ jobs:
           python -I -B scripts/sync_wiki.py --check
           base=""
           before="${{ github.event.before }}"
-          if [[ "${{ github.event_name }}" == "push" && -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before}^{commit}" >/dev/null 2>&1; then
             base="$before"
           elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
             base="HEAD^"

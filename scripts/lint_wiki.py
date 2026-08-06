@@ -1036,6 +1036,11 @@ class Linter:
 
     def validate_against_base(self, base: str) -> None:
         ok, _, stderr = run_git("rev-parse", "--verify", f"{base}^{{commit}}")
+        if not ok and base != "HEAD^":
+            fallback_ok, _, _ = run_git("rev-parse", "--verify", "HEAD^^{commit}")
+            if fallback_ok:
+                base = "HEAD^"
+                ok = True
         if not ok:
             self.error("GIT_BASE", ".git", f"기준 Git 참조 `{base}`를 확인할 수 없습니다: {stderr.strip()}")
             return

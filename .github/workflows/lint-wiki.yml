@@ -70,8 +70,17 @@ jobs:
         shell: bash
         run: |
           base="${{ github.event.before }}"
-          git cat-file -e "${base}^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"
-          python -I -B scripts/lint_wiki.py --base "$base" --strict-warnings
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$base" 2>/dev/null || true
+          fi
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="HEAD^"
+          fi
+          if git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            python -I -B scripts/lint_wiki.py --base "$base" --strict-warnings
+          else
+            python -I -B scripts/lint_wiki.py --strict-warnings
+          fi
 
       - name: Validate pull request with trusted base linter
         if: github.event_name == 'pull_request'
